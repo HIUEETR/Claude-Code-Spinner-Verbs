@@ -48,17 +48,18 @@
     letter-spacing: -1px; margin-bottom: 12px; line-height: 1.1;
   }
   .subtitle { color: var(--muted); font-size: 18px; margin-bottom: 48px; }
-  .main { display: flex; gap: 32px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1000px; }
-  .preview-section { display: flex; flex-direction: column; align-items: center; }
+  .main { display: flex; flex-direction: column; gap: 32px; align-items: center; width: 100%; max-width: 800px; }
+  .preview-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
   .canvas-wrap {
     background: var(--surface-dark); border-radius: var(--rounded-lg);
-    padding: 32px; position: relative;
+    padding: 32px; position: relative; width: 100%; display: flex; justify-content: center;
   }
   canvas { display: block; border-radius: 4px; }
-  .controls { display: flex; flex-direction: column; gap: 24px; min-width: 320px; }
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; }
   .control-group {
-    background: var(--surface-card); border-radius: var(--rounded-lg); padding: 32px;
+    background: var(--surface-card); border-radius: var(--rounded-lg); padding: 24px;
   }
+  .control-group.full-width { grid-column: 1 / -1; }
   .control-group h3 {
     color: var(--ink); font-size: 18px; font-weight: 500; margin-bottom: 20px;
   }
@@ -179,7 +180,7 @@
   </div>
 
   <div class="controls">
-    <div class="control-group">
+    <div class="control-group full-width">
       <h3>Message</h3>
       <div class="control-row">
         <input type="text" id="inputText" placeholder="Leave empty for auto-cycle..." oninput="onInputChange()">
@@ -231,12 +232,15 @@
       </div>
     </div>
 
-    <div class="control-group">
+    <div class="control-group full-width">
       <h3>Export Settings</h3>
       <div class="control-row">
         <label>Font Size</label>
-        <input type="range" id="fontSize" min="10" max="28" value="16" oninput="onControlChange()">
-        <span class="value" id="fontSizeVal">16px</span>
+        <div class="stepper">
+          <button class="stepper-btn" onclick="stepFontSize(-2)">−</button>
+          <input type="number" class="stepper-input" id="fontSize" min="8" max="40" value="16" onchange="onControlChange()">
+          <button class="stepper-btn" onclick="stepFontSize(2)">+</button>
+        </div>
       </div>
       <div class="control-row">
         <label>Framerate</label>
@@ -452,12 +456,18 @@ function onControlChange() {
   document.getElementById('shimIntensityVal').textContent = Math.round(state.shimIntensity*100) + '%';
   document.getElementById('fpsVal').textContent = state.fps + ' fps';
   document.getElementById('gifDurationVal').textContent = state.gifDuration + 's';
-  document.getElementById('fontSizeVal').textContent = state.fontSize + 'px';
   updateGifSizeEstimate();
 }
 
 function updateGifSizeEstimate() {
   document.getElementById('gifSizeEst').textContent = `${state.canvasWidth} × ${state.canvasHeight}`;
+}
+function stepFontSize(delta) {
+  const el = document.getElementById('fontSize');
+  el.value = Math.max(+el.min, Math.min(+el.max, +el.value + delta));
+  state.fontSize = +el.value;
+  measureGlyphWidth(state.fontSize);
+  updateGifSizeEstimate();
 }
 function stepCanvas(dim, delta) {
   if (dim === 'w') {
