@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code Spinner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    background: #1a1a2e; color: #e0e0e0;
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    padding: 30px 20px;
+  }
+  h1 { color: #cc7832; font-size: 24px; margin-bottom: 8px; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 30px; }
+  .main { display: flex; gap: 30px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1000px; }
+  .preview-section { display: flex; flex-direction: column; align-items: center; }
+  .canvas-wrap {
+    background: #0d0d1a; border: 1px solid #333; border-radius: 8px;
+    padding: 20px; position: relative;
+  }
+  canvas { display: block; }
+  .controls { display: flex; flex-direction: column; gap: 16px; min-width: 300px; }
+  .control-group {
+    background: #16213e; border: 1px solid #333; border-radius: 8px; padding: 16px;
+  }
+  .control-group h3 { color: #cc7832; font-size: 14px; margin-bottom: 12px; }
+  .control-row { display: flex; align-items: center; margin-bottom: 8px; gap: 10px; }
+  .control-row label { width: 80px; font-size: 12px; color: #aaa; flex-shrink: 0; }
+  .control-row input[type="range"] { flex: 1; accent-color: #cc7832; }
+  .control-row .value { width: 60px; text-align: right; font-size: 12px; color: #ffc864; }
+  .control-row select {
+    background: #0d0d1a; color: #e0e0e0; border: 1px solid #555;
+    border-radius: 4px; padding: 4px 8px; font-family: inherit; font-size: 12px;
+  }
+  .control-row input[type="text"], .control-row input[type="number"] {
+    background: #0d0d1a; color: #e0e0e0; border: 1px solid #555;
+    border-radius: 4px; padding: 4px 8px; font-family: inherit; font-size: 12px; width: 100px;
+  }
+  .color-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .color-chip {
+    width: 28px; height: 28px; border-radius: 4px; cursor: pointer;
+    border: 2px solid transparent; transition: border-color 0.2s;
+  }
+  .color-chip.active { border-color: #fff; }
+  .color-chip:hover { border-color: #888; }
+  .btn {
+    background: #cc7832; color: #fff; border: none; border-radius: 6px;
+    padding: 10px 20px; font-family: inherit; font-size: 14px; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: #e08940; }
+  .btn:disabled { background: #555; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; margin-top: 10px; }
+  .btn.secondary { background: #333; }
+  .btn.secondary:hover { background: #444; }
+  .status { font-size: 12px; color: #888; margin-top: 8px; min-height: 18px; }
+  .input-section { margin-top: 20px; width: 100%; max-width: 600px; }
+  .input-section input {
+    width: 100%; background: #0d0d1a; color: #ffc864; border: 1px solid #555;
+    border-radius: 6px; padding: 10px 14px; font-family: inherit; font-size: 16px;
+    outline: none;
+  }
+  .input-section input:focus { border-color: #cc7832; }
+  .input-section .hint { font-size: 11px; color: #666; margin-top: 6px; text-align: center; }
+  .export-section { margin-top: 20px; text-align: center; }
+  .progress-bar {
+    width: 100%; height: 4px; background: #333; border-radius: 2px;
+    margin-top: 8px; overflow: hidden; display: none;
+  }
+  .progress-bar .fill { height: 100%; background: #cc7832; width: 0%; transition: width 0.1s; }
+  /* Preview area for transparent export */
+  .canvas-wrap.transparent { background: repeating-conic-gradient(#2a2a3e 0% 25%, #1a1a2e 0% 50%) 50%/16px 16px; }
+</style>
+</head>
+<body>
+
+<h1>✦ Claude Code Spinner</h1>
+<p class="subtitle">Claude Code 加载动画 · 支持 GIF 导出</p>
+
+<div class="main">
+  <!-- Preview -->
+  <div class="preview-section">
+    <div class="canvas-wrap" id="canvasWrap">
+      <canvas id="canvas" width="400" height="80"></canvas>
+    </div>
+    <div class="export-section">
+      <div class="btn-row">
+        <button class="btn" id="btnExportGif" onclick="exportGif()">导出 GIF</button>
+        <button class="btn secondary" id="btnExportPng" onclick="exportPng()">导出 PNG</button>
+        <button class="btn secondary" id="btnToggleBg" onclick="toggleBg()">透明背景</button>
+      </div>
+      <div class="status" id="status"></div>
+      <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <!-- Input -->
+    <div class="control-group">
+      <h3>📝 文本</h3>
+      <div class="control-row">
+        <input type="text" id="inputText" placeholder="输入文字，留空则自动循环" oninput="onInputChange()">
+      </div>
+    </div>
+
+    <!-- Colors -->
+    <div class="control-group">
+      <h3>🎨 颜色方案</h3>
+      <div class="color-row" id="colorChips"></div>
+      <div class="control-row" style="margin-top:10px">
+        <label>自定义主色</label>
+        <input type="color" id="customMsg" value="#cc7832" onchange="onCustomColor()">
+        <label>高亮色</label>
+        <input type="color" id="customShim" value="#ffc864" onchange="onCustomColor()">
+      </div>
+    </div>
+
+    <!-- Shimmer -->
+    <div class="control-group">
+      <h3>✨ 扫光效果</h3>
+      <div class="control-row">
+        <label>方向</label>
+        <select id="shimDir" onchange="onControlChange()">
+          <option value="rtl">← 右到左 (RTL)</option>
+          <option value="ltr">→ 左到右 (LTR)</option>
+        </select>
+      </div>
+      <div class="control-row">
+        <label>窗口宽度</label>
+        <input type="range" id="shimWidth" min="1" max="10" value="3" oninput="onControlChange()">
+        <span class="value" id="shimWidthVal">3</span>
+      </div>
+      <div class="control-row">
+        <label>扫光速度</label>
+        <input type="range" id="shimSpeed" min="0.5" max="5" step="0.1" value="1.5" oninput="onControlChange()">
+        <span class="value" id="shimSpeedVal">1.5s</span>
+      </div>
+      <div class="control-row">
+        <label>高亮强度</label>
+        <input type="range" id="shimIntensity" min="0" max="100" value="100" oninput="onControlChange()">
+        <span class="value" id="shimIntensityVal">100%</span>
+      </div>
+    </div>
+
+    <!-- Animation -->
+    <div class="control-group">
+      <h3>🎬 动画</h3>
+      <div class="control-row">
+        <label>帧率</label>
+        <input type="range" id="fps" min="5" max="30" value="15" oninput="onControlChange()">
+        <span class="value" id="fpsVal">15 fps</span>
+      </div>
+      <div class="control-row">
+        <label>GIF 时长</label>
+        <input type="range" id="gifDuration" min="1" max="10" step="0.5" value="3" oninput="onControlChange()">
+        <span class="value" id="gifDurationVal">3s</span>
+      </div>
+      <div class="control-row">
+        <label>画布宽度</label>
+        <input type="range" id="canvasWidth" min="200" max="800" step="50" value="400" oninput="onResize()">
+        <span class="value" id="canvasWidthVal">400</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// === Spinner Config ===
+const SPINNER_CHARS = ['·', '✢', '✳', '✶', '✻', '✽'];
+const SPINNER_FRAMES = [...SPINNER_CHARS, ...[...SPINNER_CHARS].reverse()];
+
+const COLOR_SCHEMES = [
+  { name: 'Claude Orange',  message: [204,120,50],  shimmer: [255,200,100] },
+  { name: 'Electric Blue',  message: [50,150,255],  shimmer: [100,200,255] },
+  { name: 'Neon Green',     message: [50,205,50],   shimmer: [150,255,150] },
+  { name: 'Hot Pink',       message: [255,105,180], shimmer: [255,180,220] },
+  { name: 'Purple Haze',    message: [148,103,189], shimmer: [200,160,255] },
+  { name: 'Crimson Red',    message: [220,50,50],   shimmer: [255,120,120] },
+  { name: 'Teal',           message: [0,180,180],   shimmer: [100,255,255] },
+  { name: 'Amber',          message: [255,191,0],   shimmer: [255,230,100] },
+];
+
+const DEFAULT_VERBS = [
+  'Accomplishing','Baking','Brewing','Calculating','Cascading','Clauding',
+  'Cogitating','Composing','Computing','Crafting','Creating','Crunching',
+  'Deciphering','Elucidating','Envisioning','Fermenting','Flowing','Forging',
+  'Generating','Harmonizing','Hatching','Ideating','Imagining','Kneading',
+  'Manifesting','Marinating','Nebulizing','Orchestrating','Percolating',
+  'Pondering','Processing','Quantumizing','Ruminating','Synthesizing',
+  'Thinking','Tinkering','Warping','Whisking','Wrangling','Zigzagging',
+  '思考中','处理中','计算中','生成中','分析中','编译中','运行中','加载中',
+];
+
+// === State ===
+let state = {
+  text: '',
+  verb: randomVerb(),
+  tick: 0,
+  colorIdx: 0,
+  customMsg: null,
+  customShim: null,
+  shimDir: 'rtl',
+  shimWidth: 3,
+  shimSpeed: 1.5,
+  shimIntensity: 1.0,
+  fps: 15,
+  gifDuration: 3,
+  canvasWidth: 400,
+  transparentBg: false,
+};
+
+let lastSweepId = -1;
+let animId = null;
+let lastFrameTime = 0;
+
+// === DOM ===
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function randomVerb() {
+  return DEFAULT_VERBS[Math.floor(Math.random() * DEFAULT_VERBS.length)];
+}
+
+function getMessageColor() {
+  if (state.customMsg) return state.customMsg;
+  return COLOR_SCHEMES[state.colorIdx].message;
+}
+
+function getShimmerColor() {
+  if (state.customShim) return state.customShim;
+  return COLOR_SCHEMES[state.colorIdx].shimmer;
+}
+
+// === Color utils ===
+function rgb(c) { return `rgb(${c[0]},${c[1]},${c[2]})`; }
+function rgba(c, a) { return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+function lerpColor(c1, c2, t) {
+  return [
+    Math.round(c1[0] + (c2[0]-c1[0])*t),
+    Math.round(c1[1] + (c2[1]-c1[1])*t),
+    Math.round(c1[2] + (c2[2]-c1[2])*t),
+  ];
+}
+
+// === Shimmer math ===
+function computeGlimmerIndex(tick, msgWidth, dir, padding) {
+  const cycle = msgWidth + padding * 2;
+  if (dir === 'ltr') return (tick % cycle) - padding;
+  return msgWidth + padding - (tick % cycle);
+}
+
+function computeSegments(text, glimmerIdx, windowWidth) {
+  const half = Math.floor(windowWidth / 2);
+  const start = glimmerIdx - half;
+  const end = glimmerIdx + (windowWidth - half - 1);
+  if (start >= text.length || end < 0) return { before: text, shimmer: '', after: '' };
+  const cs = Math.max(0, start);
+  let before='', shimmer='', after='';
+  for (let i = 0; i < text.length; i++) {
+    if (i < cs) before += text[i];
+    else if (i > end) after += text[i];
+    else shimmer += text[i];
+  }
+  return { before, shimmer, after };
+}
+
+// === Render ===
+function render() {
+  const W = state.canvasWidth;
+  const H = 80;
+  canvas.width = W;
+  canvas.height = H;
+
+  // Background
+  if (!state.transparentBg) {
+    ctx.fillStyle = '#0d0d1a';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.clearRect(0, 0, W, H);
+  }
+
+  const display = state.text.trim() || state.verb;
+  const fullText = display + '…';
+  const frame = Math.floor(state.tick / 2) % SPINNER_FRAMES.length;
+  const spinnerChar = SPINNER_FRAMES[frame];
+  const msgColor = getMessageColor();
+  const shimColor = getShimmerColor();
+
+  // Shimmer
+  const ticksPerSweep = Math.max(1, Math.round(state.shimSpeed * 1000 / (1000/state.fps)));
+  const scaledTick = state.tick * (fullText.length + 20) / ticksPerSweep;
+  const glimmerIdx = computeGlimmerIndex(scaledTick, fullText.length, state.shimDir, 10);
+  const segs = computeSegments(fullText, glimmerIdx, state.shimWidth);
+
+  // Intensity
+  const effShimmer = state.shimIntensity >= 1 ? shimColor : lerpColor(msgColor, shimColor, state.shimIntensity);
+
+  // Draw
+  ctx.textBaseline = 'middle';
+  const y = H / 2;
+  let x = 20;
+
+  // Spinner glyph
+  ctx.font = '28px "SF Mono", "Cascadia Code", "Fira Code", monospace';
+  ctx.fillStyle = rgb(msgColor);
+  ctx.fillText(spinnerChar, x, y);
+  x += ctx.measureText(spinnerChar).width + 10;
+
+  // Shimmer text
+  ctx.font = '22px "SF Mono", "Cascadia Code", "Fira Code", monospace';
+  if (segs.before) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.before, x, y); x += ctx.measureText(segs.before).width; }
+  if (segs.shimmer) { ctx.fillStyle = rgb(effShimmer); ctx.fillText(segs.shimmer, x, y); x += ctx.measureText(segs.shimmer).width; }
+  if (segs.after) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.after, x, y); }
+}
+
+// === Animation loop ===
+function animate(time) {
+  if (time - lastFrameTime >= 1000 / state.fps) {
+    lastFrameTime = time;
+
+    const display = state.text.trim() || state.verb;
+    const isUserInput = !!state.text.trim();
+
+    // Auto-cycle verb
+    if (!isUserInput) {
+      const ticksPerSweep = Math.max(1, Math.round(state.shimSpeed * 1000 / (1000/state.fps)));
+      const sweepId = Math.floor(state.tick / ticksPerSweep);
+      if (sweepId > 0 && sweepId !== lastSweepId) {
+        lastSweepId = sweepId;
+        state.verb = randomVerb();
+        state.tick = 0;
+        lastSweepId = -1;
+        // Reset tick tracking
+      }
+    }
+
+    render();
+    state.tick++;
+  }
+  animId = requestAnimationFrame(animate);
+}
+
+// === Controls ===
+function initColorChips() {
+  const container = document.getElementById('colorChips');
+  COLOR_SCHEMES.forEach((scheme, i) => {
+    const chip = document.createElement('div');
+    chip.className = 'color-chip' + (i === 0 ? ' active' : '');
+    chip.style.background = rgb(scheme.message);
+    chip.title = scheme.name;
+    chip.onclick = () => {
+      state.colorIdx = i;
+      state.customMsg = null;
+      state.customShim = null;
+      document.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    };
+    container.appendChild(chip);
+  });
+}
+
+function onInputChange() {
+  state.text = document.getElementById('inputText').value;
+}
+
+function onCustomColor() {
+  const msg = document.getElementById('customMsg').value;
+  const shim = document.getElementById('customShim').value;
+  state.customMsg = hexToRgb(msg);
+  state.customShim = hexToRgb(shim);
+  document.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
+}
+
+function hexToRgb(hex) {
+  const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [204,120,50];
+}
+
+function rgbToHex(c) {
+  return '#' + c.map(n => n.toString(16).padStart(2,'0')).join('');
+}
+
+function onControlChange() {
+  state.shimDir = document.getElementById('shimDir').value;
+  state.shimWidth = +document.getElementById('shimWidth').value;
+  state.shimSpeed = +document.getElementById('shimSpeed').value;
+  state.shimIntensity = +document.getElementById('shimIntensity').value / 100;
+  state.fps = +document.getElementById('fps').value;
+  state.gifDuration = +document.getElementById('gifDuration').value;
+
+  document.getElementById('shimWidthVal').textContent = state.shimWidth;
+  document.getElementById('shimSpeedVal').textContent = state.shimSpeed.toFixed(1) + 's';
+  document.getElementById('shimIntensityVal').textContent = Math.round(state.shimIntensity*100) + '%';
+  document.getElementById('fpsVal').textContent = state.fps + ' fps';
+  document.getElementById('gifDurationVal').textContent = state.gifDuration + 's';
+}
+
+function onResize() {
+  state.canvasWidth = +document.getElementById('canvasWidth').value;
+  document.getElementById('canvasWidthVal').textContent = state.canvasWidth;
+}
+
+function toggleBg() {
+  state.transparentBg = !state.transparentBg;
+  document.getElementById('canvasWrap').classList.toggle('transparent', state.transparentBg);
+  document.getElementById('btnToggleBg').textContent = state.transparentBg ? '不透明背景' : '透明背景';
+}
+
+// === GIF Export (minimal LZW encoder) ===
+function exportGif() {
+  const btn = document.getElementById('btnExportGif');
+  const status = document.getElementById('status');
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+
+  btn.disabled = true;
+  status.textContent = '正在生成 GIF...';
+  bar.style.display = 'block';
+  fill.style.width = '0%';
+
+  // Save state
+  const savedTick = state.tick;
+  const totalFrames = Math.round(state.gifDuration * state.fps);
+  const delay = Math.round(1000 / state.fps);
+
+  // Capture frames
+  const frames = [];
+  for (let i = 0; i < totalFrames; i++) {
+    state.tick = i;
+    render();
+    frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    fill.style.width = Math.round((i+1) / totalFrames * 50) + '%';
+  }
+
+  // Encode GIF
+  setTimeout(() => {
+    try {
+      const gif = new SimpleGIF(canvas.width, canvas.height, delay);
+      frames.forEach((frame, i) => {
+        gif.addFrame(frame.data, canvas.width, canvas.height, state.transparentBg);
+        fill.style.width = Math.round(50 + (i+1) / totalFrames * 50) + '%';
+      });
+      const blob = gif.finish();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'spinner.gif';
+      a.click();
+      URL.revokeObjectURL(url);
+      status.textContent = `✓ 已导出 (${totalFrames} 帧, ${state.gifDuration}s)`;
+    } catch(e) {
+      status.textContent = '导出失败: ' + e.message;
+    }
+    btn.disabled = false;
+    bar.style.display = 'none';
+    state.tick = savedTick;
+  }, 50);
+}
+
+function exportPng() {
+  render();
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'spinner.png';
+  a.click();
+}
+
+// === Minimal GIF Encoder (uncompressed LZW) ===
+class SimpleGIF {
+  constructor(width, height, delay) {
+    this.width = width;
+    this.height = height;
+    this.delay = delay;
+    this.frames = [];
+  }
+
+  addFrame(rgba, w, h, transparent) {
+    // Quantize to 256 colors
+    const {pixels, palette} = this.quantize(rgba, w, h, transparent);
+    this.frames.push({pixels, palette, transparent});
+  }
+
+  quantize(rgba, w, h, transparent) {
+    // Simple median-cut-like quantization
+    const colorMap = new Map();
+    const pixels = new Uint8Array(w * h);
+
+    for (let i = 0; i < w * h; i++) {
+      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
+      // Round to reduce color count
+      const key = (transparent && a < 128) ? -1 :
+                  ((r>>2)<<16) | ((g>>2)<<8) | (b>>2);
+      if (!colorMap.has(key)) colorMap.set(key, {count: 0, r: 0, g: 0, b: 0});
+      const c = colorMap.get(key);
+      c.count++;
+      if (key !== -1) { c.r += r; c.g += g; c.b += b; }
+    }
+
+    // Build palette (max 255 colors + transparent)
+    const entries = [...colorMap.entries()].filter(([k]) => k !== -1)
+      .sort((a,b) => b[1].count - a[1].count)
+      .slice(0, transparent ? 255 : 256);
+
+    const palette = [];
+    const lookup = new Map();
+
+    if (transparent) {
+      palette.push([0,0,0]); // index 0 = transparent
+      lookup.set(-1, 0);
+    }
+
+    entries.forEach(([key, c]) => {
+      const idx = palette.length;
+      palette.push([Math.round(c.r/c.count), Math.round(c.g/c.count), Math.round(c.b/c.count)]);
+      lookup.set(key, idx);
+    });
+
+    // Map pixels
+    for (let i = 0; i < w * h; i++) {
+      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
+      const key = (transparent && a < 128) ? -1 :
+                  ((r>>2)<<16) | ((g>>2)<<8) | (b>>2);
+      pixels[i] = lookup.get(key) ?? 0;
+    }
+
+    // Pad palette to power of 2
+    const bits = Math.max(2, Math.ceil(Math.log2(Math.max(palette.length, 4))));
+    while (palette.length < (1 << bits)) palette.push([0,0,0]);
+
+    return {pixels, palette: {colors: palette, bits}};
+  }
+
+  finish() {
+    const buf = [];
+    const w = this.width, h = this.height;
+
+    // Header
+    this.writeStr(buf, 'GIF89a');
+    this.writeShort(buf, w);
+    this.writeShort(buf, h);
+    buf.push(0xF7, 0, 0); // GCT flag, 512 colors (2^9)
+
+    // Global palette from first frame
+    const gct = this.frames[0].palette;
+    for (let i = 0; i < 512; i++) {
+      const c = gct.colors[i] || [0,0,0];
+      buf.push(c[0], c[1], c[2]);
+    }
+
+    // Netscape extension (loop)
+    buf.push(0x21, 0xFF, 0x0B);
+    this.writeStr(buf, 'NETSCAPE2.0');
+    buf.push(0x03, 0x01);
+    this.writeShort(buf, 0); // loop forever
+    buf.push(0x00);
+
+    // Frames
+    this.frames.forEach(frame => {
+      // Graphic control extension
+      buf.push(0x21, 0xF9, 0x04);
+      buf.push(frame.transparent ? 0x09 : 0x08); // disposal: restore bg / none
+      this.writeShort(buf, Math.round(this.delay / 10)); // delay in 1/100s
+      buf.push(frame.transparent ? 0 : 0); // transparent color index
+      buf.push(0x00);
+
+      // Image descriptor
+      buf.push(0x2C);
+      this.writeShort(buf, 0); this.writeShort(buf, 0);
+      this.writeShort(buf, w); this.writeShort(buf, h);
+      buf.push(frame.palette.bits === 9 ? 0x87 : 0x80 | (frame.palette.bits - 1));
+
+      // Local color table (if different from GCT)
+      const lct = frame.palette;
+      if (lct.bits === 9) {
+        for (let i = 0; i < 512; i++) {
+          const c = lct.colors[i] || [0,0,0];
+          buf.push(c[0], c[1], c[2]);
+        }
+      }
+
+      // LZW image data
+      this.writeLZW(buf, frame.pixels, lct.bits);
+    });
+
+    buf.push(0x3B); // Trailer
+    return new Blob([new Uint8Array(buf)], {type: 'image/gif'});
+  }
+
+  writeLZW(buf, pixels, minCodeSize) {
+    buf.push(minCodeSize);
+    const clearCode = 1 << minCodeSize;
+    const eoiCode = clearCode + 1;
+
+    let codeSize = minCodeSize + 1;
+    let nextCode = eoiCode + 1;
+    const table = new Map();
+
+    // Init table
+    for (let i = 0; i < clearCode; i++) table.set(String(i), i);
+
+    let out = [];
+    let bitBuf = 0, bitCount = 0;
+
+    const emit = (code) => {
+      bitBuf |= code << bitCount;
+      bitCount += codeSize;
+      while (bitCount >= 8) {
+        out.push(bitBuf & 0xFF);
+        bitBuf >>= 8;
+        bitCount -= 8;
+      }
+    };
+
+    emit(clearCode);
+    let cur = String(pixels[0]);
+
+    for (let i = 1; i < pixels.length; i++) {
+      const next = cur + ',' + pixels[i];
+      if (table.has(next)) {
+        cur = next;
+      } else {
+        emit(table.get(cur));
+        if (nextCode < 4096) {
+          table.set(next, nextCode++);
+          if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
+        } else {
+          emit(clearCode);
+          table.clear();
+          for (let j = 0; j < clearCode; j++) table.set(String(j), j);
+          nextCode = eoiCode + 1;
+          codeSize = minCodeSize + 1;
+        }
+        cur = String(pixels[i]);
+      }
+    }
+    emit(table.get(cur));
+    emit(eoiCode);
+
+    if (bitCount > 0) out.push(bitBuf & 0xFF);
+
+    // Write sub-blocks
+    let pos = 0;
+    while (pos < out.length) {
+      const chunk = out.slice(pos, pos + 255);
+      buf.push(chunk.length);
+      buf.push(...chunk);
+      pos += 255;
+    }
+    buf.push(0x00); // Block terminator
+  }
+
+  writeStr(buf, s) { for (let i = 0; i < s.length; i++) buf.push(s.charCodeAt(i)); }
+  writeShort(buf, n) { buf.push(n & 0xFF, (n >> 8) & 0xFF); }
+}
+
+// === Init ===
+initColorChips();
+onControlChange();
+animate(0);
+</script>
+</body>
+</html>
