@@ -267,12 +267,29 @@ function computeSegments(text, glimmerIdx, windowWidth) {
   return { before, shimmer, after };
 }
 
+// === Pre-calculate fixed glyph width ===
+let GLYPH_WIDTH = 0;
+function measureGlyphWidth() {
+  const c = document.createElement('canvas').getContext('2d');
+  c.font = '28px "SF Mono", "Cascadia Code", "Fira Code", monospace';
+  let max = 0;
+  for (const ch of SPINNER_FRAMES) {
+    max = Math.max(max, c.measureText(ch).width);
+  }
+  GLYPH_WIDTH = max + 2; // small padding
+}
+measureGlyphWidth();
+
 // === Render ===
 function render() {
   const W = state.canvasWidth;
   const H = 80;
-  canvas.width = W;
-  canvas.height = H;
+
+  // Only resize canvas when needed (resizing clears content)
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W;
+    canvas.height = H;
+  }
 
   // Background
   if (!state.transparentBg) {
@@ -289,31 +306,46 @@ function render() {
   const msgColor = getMessageColor();
   const shimColor = getShimmerColor();
 
-  // Shimmer
-  const ticksPerSweep = Math.max(1, Math.round(state.shimSpeed * 1000 / (1000/state.fps)));
-  const scaledTick = state.tick * (fullText.length + 20) / ticksPerSweep;
+  // Shimmer — use tick directly, scaled to text cycle length
+  const cycleLen = fullText.length + 20; // matches shimmer padding
+  const ticksPerSweep = Math.max(1, Math.round(state.shimSpeed * 1000 / (1000 / state.fps)));
+  const scaledTick = state.tick * cycleLen / ticksPerSweep;
   const glimmerIdx = computeGlimmerIndex(scaledTick, fullText.length, state.shimDir, 10);
   const segs = computeSegments(fullText, glimmerIdx, state.shimWidth);
 
   // Intensity
-  const effShimmer = state.shimIntensity >= 1 ? shimColor : lerpColor(msgColor, shimColor, state.shimIntensity);
+  const effShimmer = state.shimIntensity >= 1
+    ? shimColor
+    : lerpColor(msgColor, shimColor, state.shimIntensity);
 
   // Draw
   ctx.textBaseline = 'middle';
   const y = H / 2;
   let x = 20;
 
-  // Spinner glyph
+  // Spinner glyph — draw at fixed position (centered in fixed-width box)
   ctx.font = '28px "SF Mono", "Cascadia Code", "Fira Code", monospace';
   ctx.fillStyle = rgb(msgColor);
-  ctx.fillText(spinnerChar, x, y);
-  x += ctx.measureText(spinnerChar).width + 10;
+  const charW = ctx.measureText(spinnerChar).width;
+  ctx.fillText(spinnerChar, x + (GLYPH_WIDTH - charW) / 2, y);
+  x += GLYPH_WIDTH + 10;
 
   // Shimmer text
   ctx.font = '22px "SF Mono", "Cascadia Code", "Fira Code", monospace';
-  if (segs.before) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.before, x, y); x += ctx.measureText(segs.before).width; }
-  if (segs.shimmer) { ctx.fillStyle = rgb(effShimmer); ctx.fillText(segs.shimmer, x, y); x += ctx.measureText(segs.shimmer).width; }
-  if (segs.after) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.after, x, y); }
+  if (segs.before) {
+    ctx.fillStyle = rgb(msgColor);
+    ctx.fillText(segs.before, x, y);
+    x += ctx.measureText(segs.before).width;
+  }
+  if (segs.shimmer) {
+    ctx.fillStyle = rgb(effShimmer);
+    ctx.fillText(segs.shimmer, x, y);
+    x += ctx.measureText(segs.shimmer).width;
+  }
+  if (segs.after) {
+    ctx.fillStyle = rgb(msgColor);
+    ctx.fillText(segs.after, x, y);
+  }
 }
 
 // === Animation loop ===
@@ -431,7 +463,9 @@ function exportGif() {
   for (let i = 0; i < totalFrames; i++) {
     state.tick = i;
     render();
-    frameData.push(ctx.getImageData(0, 0, w, h).data);
+    // Copy pixel data immediately (before next render overwrites)
+    const imgData = ctx.getImageData(0, 0, w, h);
+    frameData.push(new Uint8Array(imgData.data)); // copy to avoid shared buffer
     fill.style.width = Math.round((i+1) / totalFrames * 40) + '%';
   }
 
@@ -494,23 +528,35 @@ class GIFEncoder {
   _quantize(rgba, transparent) {
     const w = this.width, h = this.height, total = w * h;
 
-    // Collect unique colors (6-bit quantization to reduce)
+    // Collect unique colors with 5-bit quantization (32 levels per channel)
+    // This gives max 32768 unique keys — much better frequency counting
     const colorCounts = new Map();
     for (let i = 0; i < total; i++) {
       const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
-      if (transparent && a < 128) continue; // skip transparent pixels for palette
-      const key = ((r >> 2) << 16) | ((g >> 2) << 8) | (b >> 2);
+      if (transparent && a < 128) continue;
+      const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
       colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
     }
 
-    // Take top 255 most frequent colors (reserve index 0 for transparent)
+    // Take top N most frequent colors
     const sorted = [...colorCounts.entries()].sort((a, b) => b[1] - a[1]);
     const maxColors = transparent ? 255 : 256;
     const topColors = sorted.slice(0, maxColors);
 
-    // Build palette
-    const palette = []; // [[r,g,b], ...]
-    const colorToIdx = new Map();
+    // Build palette with exact average colors (not quantized reconstruction)
+    const palette = [];
+    const keyToIdx = new Map();
+
+    // Also build a reverse map to compute average RGB per key
+    const colorSums = new Map();
+    for (let i = 0; i < total; i++) {
+      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
+      if (transparent && a < 128) continue;
+      const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+      if (!colorSums.has(key)) colorSums.set(key, {r: 0, g: 0, b: 0, n: 0});
+      const s = colorSums.get(key);
+      s.r += r; s.g += g; s.b += b; s.n++;
+    }
 
     if (transparent) {
       palette.push([0, 0, 0]); // index 0 = transparent
@@ -518,16 +564,9 @@ class GIFEncoder {
 
     for (const [key] of topColors) {
       const idx = palette.length;
-      // Reconstruct from 6-bit quantized: shift left 2, fill low bits
-      const rq = (key >> 16) & 0x3F;
-      const gq = (key >> 8) & 0x3F;
-      const bq = key & 0x3F;
-      palette.push([
-        (rq << 2) | (rq >> 4),
-        (gq << 2) | (gq >> 4),
-        (bq << 2) | (bq >> 4),
-      ]);
-      colorToIdx.set(key, idx);
+      const s = colorSums.get(key);
+      palette.push([Math.round(s.r/s.n), Math.round(s.g/s.n), Math.round(s.b/s.n)]);
+      keyToIdx.set(key, idx);
     }
 
     // Pad to 256 entries
@@ -540,9 +579,12 @@ class GIFEncoder {
       if (transparent && a < 128) {
         indexed[i] = 0;
       } else {
-        const key = ((r >> 2) << 16) | ((g >> 2) << 8) | (b >> 2);
-        indexed[i] = colorToIdx.has(key) ? colorToIdx.get(key) :
-          this._findNearest(r, g, b, palette, transparent ? 1 : 0);
+        const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+        if (keyToIdx.has(key)) {
+          indexed[i] = keyToIdx.get(key);
+        } else {
+          indexed[i] = this._findNearest(r, g, b, palette, transparent ? 1 : 0);
+        }
       }
     }
 
