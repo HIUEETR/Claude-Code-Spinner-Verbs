@@ -145,7 +145,6 @@
   <div class="preview-section">
     <div class="canvas-wrap" id="canvasWrap">
       <canvas id="canvas" width="400" height="80"></canvas>
-      <div class="canvas-size" id="canvasSize" style="color:var(--on-dark-soft);font-size:12px;margin-top:8px;text-align:center;font-family:var(--font-code)"></div>
     </div>
     <div class="export-section">
       <div class="btn-row">
@@ -234,8 +233,8 @@
         <span class="value" id="canvasWidthVal">400</span>
       </div>
       <div class="control-row">
-        <label>Est. Size</label>
-        <span class="value" id="gifSizeEst" style="width:auto;color:var(--body-strong)">~0 KB</span>
+        <label>GIF Size</label>
+        <span class="value" id="gifSizeEst" style="width:auto;color:var(--body-strong)">400 × 80</span>
       </div>
     </div>
   </div>
@@ -318,10 +317,7 @@ measureGlyphWidth(state.fontSize);
 function render() {
   const W = state.canvasWidth;
   const H = Math.max(60, state.fontSize * 4 + 16);
-  if (canvas.width !== W || canvas.height !== H) {
-    canvas.width = W; canvas.height = H;
-    document.getElementById('canvasSize').textContent = `${W} × ${H}`;
-  }
+  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
 
   if (!state.transparentBg) { ctx.fillStyle = '#181715'; ctx.fillRect(0, 0, W, H); }
   else { ctx.clearRect(0, 0, W, H); }
@@ -429,16 +425,8 @@ function onControlChange() {
 }
 
 function updateGifSizeEstimate() {
-  const totalFrames = Math.round(state.gifDuration * state.fps);
-  // Rough estimate: each frame ~2-5 KB with LZW compression on dark bg
-  // Canvas size matters: larger = more pixels = larger frames
-  const pixels = state.canvasWidth * 80;
-  const bytesPerFrame = Math.round(pixels * 0.8); // rough: 0.8 bytes/pixel after LZW
-  const totalBytes = totalFrames * bytesPerFrame + 1024; // +1 KB overhead
-  const kb = (totalBytes / 1024).toFixed(0);
-  const mb = (totalBytes / (1024*1024)).toFixed(1);
-  document.getElementById('gifSizeEst').textContent =
-    totalBytes > 1024*1024 ? `~${mb} MB` : `~${kb} KB`;
+  const H = Math.max(60, state.fontSize * 4 + 16);
+  document.getElementById('gifSizeEst').textContent = `${state.canvasWidth} × ${H}`;
 }
 function onResize() {
   state.canvasWidth = +document.getElementById('canvasWidth').value;
@@ -480,13 +468,11 @@ function exportGif() {
         fill.style.width = Math.round(40 + (i+1) / totalFrames * 60) + '%';
       });
       const blob = gif.toBlob();
-      const sizeKB = (blob.size / 1024).toFixed(0);
-      const sizeMB = (blob.size / (1024*1024)).toFixed(1);
-      const sizeStr = blob.size > 1024*1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'claude-spinner.gif'; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status.textContent = `✓ Exported (${totalFrames} frames, ${state.gifDuration}s, ${sizeStr})`;
+      const H = Math.max(60, state.fontSize * 4 + 16);
+      status.textContent = `✓ Exported (${w}×${H}, ${totalFrames} frames, ${state.gifDuration}s)`;
     } catch(e) { console.error(e); status.textContent = 'Export failed: ' + e.message; }
     btn.disabled = false; bar.style.display = 'none'; state.tick = savedTick;
   }, 50);
