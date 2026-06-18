@@ -238,7 +238,7 @@
         <label>Font Size</label>
         <div class="stepper">
           <button class="stepper-btn" onclick="stepVal('fontSize',-2)">−</button>
-          <input type="number" class="stepper-input" id="fontSize" min="8" max="40" value="16" onchange="onControlChange()">
+          <input type="number" class="stepper-input" id="fontSize" min="8" max="40" value="34" onchange="onControlChange()">
           <button class="stepper-btn" onclick="stepVal('fontSize',2)">+</button>
         </div>
       </div>
@@ -311,7 +311,7 @@ let state = {
   colorIdx: 0, customMsg: null, customShim: null,
   shimDir: 'rtl', shimWidth: 3, shimSpeed: 1.5, shimIntensity: 1.0,
   fps: 15, gifDuration: 3, canvasWidth: 400, canvasHeight: 80, transparentBg: false,
-  fontSize: 16,
+  fontSize: 34,
 };
 let lastSweepId = -1, lastFrameTime = 0;
 
@@ -365,7 +365,7 @@ function render() {
   else { ctx.clearRect(0, 0, W, H); }
 
   const display = state.text.trim() || state.verb;
-  const fullText = display + '…';
+  const fullText = display;
   const frame = Math.floor(state.tick / 2) % SPINNER_FRAMES.length;
   const spinnerChar = SPINNER_FRAMES[frame];
   const msgColor = getMessageColor();
