@@ -99,6 +99,27 @@
     background: transparent;
   }
 
+  /* Stepper input with +/- buttons */
+  .stepper { display: flex; flex: 1; align-items: stretch; }
+  .stepper-btn {
+    width: 36px; height: 36px; border: 1px solid var(--hairline); background: var(--canvas);
+    color: var(--body-strong); font-size: 18px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s; user-select: none; line-height: 1;
+  }
+  .stepper-btn:hover { background: var(--surface-soft); }
+  .stepper-btn:active { background: var(--hairline); }
+  .stepper-btn:first-child { border-radius: var(--rounded-md) 0 0 var(--rounded-md); }
+  .stepper-btn:last-child { border-radius: 0 var(--rounded-md) var(--rounded-md) 0; }
+  .stepper-input {
+    width: 60px; height: 36px; border: 1px solid var(--hairline); border-left: none; border-right: none;
+    background: var(--canvas); color: var(--ink); font-family: var(--font-code); font-size: 14px;
+    text-align: center; outline: none; -moz-appearance: textfield;
+  }
+  .stepper-input::-webkit-inner-spin-button,
+  .stepper-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .stepper-input:focus { background: var(--surface-soft); }
+
   /* Direction toggle buttons */
   .toggle-group { display: flex; gap: 0; flex: 1; }
   .toggle-btn {
@@ -228,9 +249,20 @@
         <span class="value" id="gifDurationVal">3s</span>
       </div>
       <div class="control-row">
-        <label>Canvas W</label>
-        <input type="range" id="canvasWidth" min="200" max="800" step="50" value="400" oninput="onResize()">
-        <span class="value" id="canvasWidthVal">400</span>
+        <label>Width</label>
+        <div class="stepper">
+          <button class="stepper-btn" onclick="stepCanvas('w',-50)">−</button>
+          <input type="number" class="stepper-input" id="canvasWidth" min="100" max="1200" step="10" value="400" onchange="onResize()">
+          <button class="stepper-btn" onclick="stepCanvas('w',50)">+</button>
+        </div>
+      </div>
+      <div class="control-row">
+        <label>Height</label>
+        <div class="stepper">
+          <button class="stepper-btn" onclick="stepCanvas('h',-10)">−</button>
+          <input type="number" class="stepper-input" id="canvasHeight" min="40" max="400" step="5" value="80" onchange="onResize()">
+          <button class="stepper-btn" onclick="stepCanvas('h',10)">+</button>
+        </div>
       </div>
       <div class="control-row">
         <label>GIF Size</label>
@@ -268,7 +300,7 @@ let state = {
   text: '', verb: randomVerb(), tick: 0,
   colorIdx: 0, customMsg: null, customShim: null,
   shimDir: 'rtl', shimWidth: 3, shimSpeed: 1.5, shimIntensity: 1.0,
-  fps: 15, gifDuration: 3, canvasWidth: 400, transparentBg: false,
+  fps: 15, gifDuration: 3, canvasWidth: 400, canvasHeight: 80, transparentBg: false,
   fontSize: 16,
 };
 let lastSweepId = -1, lastFrameTime = 0;
@@ -316,7 +348,7 @@ measureGlyphWidth(state.fontSize);
 // === Render ===
 function render() {
   const W = state.canvasWidth;
-  const H = Math.max(60, state.fontSize * 4 + 16);
+  const H = state.canvasHeight;
   if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
 
   if (!state.transparentBg) { ctx.fillStyle = '#181715'; ctx.fillRect(0, 0, W, H); }
@@ -425,12 +457,24 @@ function onControlChange() {
 }
 
 function updateGifSizeEstimate() {
-  const H = Math.max(60, state.fontSize * 4 + 16);
-  document.getElementById('gifSizeEst').textContent = `${state.canvasWidth} × ${H}`;
+  document.getElementById('gifSizeEst').textContent = `${state.canvasWidth} × ${state.canvasHeight}`;
+}
+function stepCanvas(dim, delta) {
+  if (dim === 'w') {
+    const el = document.getElementById('canvasWidth');
+    el.value = Math.max(+el.min, Math.min(+el.max, +el.value + delta));
+    state.canvasWidth = +el.value;
+  } else {
+    const el = document.getElementById('canvasHeight');
+    el.value = Math.max(+el.min, Math.min(+el.max, +el.value + delta));
+    state.canvasHeight = +el.value;
+  }
+  updateGifSizeEstimate();
 }
 function onResize() {
   state.canvasWidth = +document.getElementById('canvasWidth').value;
-  document.getElementById('canvasWidthVal').textContent = state.canvasWidth;
+  state.canvasHeight = +document.getElementById('canvasHeight').value;
+  updateGifSizeEstimate();
 }
 function toggleBg() {
   state.transparentBg = !state.transparentBg;
@@ -471,8 +515,7 @@ function exportGif() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'claude-spinner.gif'; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      const H = Math.max(60, state.fontSize * 4 + 16);
-      status.textContent = `✓ Exported (${w}×${H}, ${totalFrames} frames, ${state.gifDuration}s)`;
+      status.textContent = `✓ Exported (${w}×${h}, ${totalFrames} frames, ${state.gifDuration}s)`;
     } catch(e) { console.error(e); status.textContent = 'Export failed: ' + e.message; }
     btn.disabled = false; bar.style.display = 'none'; state.tick = savedTick;
   }, 50);
