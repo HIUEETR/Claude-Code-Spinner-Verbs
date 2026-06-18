@@ -6,293 +6,1059 @@
 <title>Claude Code Spinner</title>
 <style>
   :root {
-    --primary: #cc785c;
-    --primary-active: #a9583e;
-    --primary-disabled: #e6dfd8;
-    --canvas: #faf9f5;
-    --surface-soft: #f5f0e8;
-    --surface-card: #efe9de;
-    --surface-dark: #181715;
-    --surface-dark-elevated: #252320;
-    --surface-dark-soft: #1f1e1b;
-    --hairline: #e6dfd8;
-    --ink: #141413;
-    --body-strong: #252523;
-    --body: #3d3d3a;
-    --muted: #6c6a64;
-    --muted-soft: #8e8b82;
-    --on-primary: #ffffff;
-    --on-dark: #faf9f5;
-    --on-dark-soft: #a09d96;
-    --rounded-sm: 6px;
-    --rounded-md: 8px;
-    --rounded-lg: 12px;
-    --rounded-xl: 16px;
-    --font-display: 'Tiempos Headline', 'Cormorant Garamond', 'EB Garamond', 'Times New Roman', serif;
-    --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-code: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', monospace;
+    --primary: #c8654a;
+    --primary-active: #9f4630;
+    --primary-soft: #f4d8ca;
+    --accent: #527568;
+    --canvas: #f7f2e8;
+    --canvas-2: #eee4d3;
+    --surface: #fffaf0;
+    --surface-strong: #fffaf0;
+    --surface-muted: #eee5d6;
+    --stage: #171715;
+    --stage-2: #24231f;
+    --stage-line: rgba(255, 250, 240, 0.16);
+    --line: rgba(33, 31, 27, 0.13);
+    --line-strong: rgba(33, 31, 27, 0.22);
+    --ink: #171614;
+    --body: #3e3b35;
+    --muted: #746f64;
+    --muted-2: #9b9284;
+    --on-primary: #fffaf4;
+    --on-dark: #fffaf0;
+    --on-dark-muted: #bdb4a7;
+    --shadow-lg: 0 14px 34px rgba(57, 43, 28, 0.14);
+    --shadow-md: 0 8px 20px rgba(57, 43, 28, 0.1);
+    --radius: 8px;
+    --font-display: "Playfair Display", "Cormorant Garamond", "Times New Roman", serif;
+    --font-body: "Inter", "Segoe UI", Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-code: "JetBrains Mono", "Cascadia Code", "Fira Code", monospace;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root[data-theme="dark"] {
+    --primary: #e29a7d;
+    --primary-active: #f0b397;
+    --primary-soft: #4d3028;
+    --accent: #8db5a8;
+    --canvas: #171614;
+    --canvas-2: #211f1b;
+    --surface: #24211d;
+    --surface-strong: #2e2a25;
+    --surface-muted: #343028;
+    --stage: #0f0f0e;
+    --stage-2: #191815;
+    --stage-line: rgba(255, 250, 240, 0.16);
+    --line: rgba(255, 250, 240, 0.13);
+    --line-strong: rgba(255, 250, 240, 0.24);
+    --ink: #fff6e8;
+    --body: #d8cfc2;
+    --muted: #a99f91;
+    --muted-2: #7f766a;
+    --on-primary: #17110d;
+    --on-dark: #fffaf0;
+    --on-dark-muted: #bdb4a7;
+    --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.28);
+    --shadow-md: 0 8px 22px rgba(0, 0, 0, 0.24);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { min-width: 320px; }
+
   body {
-    font-family: var(--font-body);
-    background: var(--canvas);
-    color: var(--body);
     min-height: 100vh;
-    display: flex; flex-direction: column; align-items: center;
-    padding: 96px 20px;
+    font-family: var(--font-body);
+    color: var(--body);
+    background: var(--canvas);
     line-height: 1.55;
   }
+
+  button, input { font: inherit; }
+
+  button {
+    cursor: pointer;
+    border: 0;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  button:focus-visible,
+  input:focus-visible {
+    outline: 3px solid rgba(200, 101, 74, 0.28);
+    outline-offset: 3px;
+  }
+
+  .theme-toggle {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-md);
+    transition: background 180ms ease, border 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+
+  .language-toggle {
+    min-width: 54px;
+    height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0 11px;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
+    font-weight: 850;
+    transition: background 180ms ease, border 180ms ease, color 180ms ease, transform 180ms ease;
+  }
+
+  .theme-toggle svg {
+    position: absolute;
+    inset: 8px;
+    width: 18px;
+    height: 18px;
+    stroke: currentColor;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .theme-toggle .moon-icon {
+    opacity: 0;
+    transform: rotate(-25deg) scale(0.72);
+  }
+
+  :root[data-theme="dark"] .theme-toggle .sun-icon {
+    opacity: 0;
+    transform: rotate(25deg) scale(0.72);
+  }
+
+  :root[data-theme="dark"] .theme-toggle .moon-icon {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+  }
+
+  .theme-toggle:hover {
+    transform: translateY(-1px);
+  }
+
+  .language-toggle:hover {
+    transform: translateY(-1px);
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+    block-size: 100%;
+    inline-size: 100%;
+  }
+
+  .theme-transitioning::view-transition-new(root) {
+    animation: themeReveal 1100ms cubic-bezier(0.25, 0.9, 0.22, 1) both;
+    z-index: 2;
+  }
+
+  .theme-transitioning::view-transition-old(root) {
+    animation: none;
+    z-index: 1;
+  }
+
+  @keyframes themeReveal {
+    from {
+      clip-path: circle(0 at var(--theme-x) var(--theme-y));
+      transform: translateZ(0);
+    }
+    to {
+      clip-path: circle(calc(var(--theme-radius) + 24px) at var(--theme-x) var(--theme-y));
+      transform: translateZ(0);
+    }
+  }
+
+  .page {
+    position: relative;
+    width: 100%;
+    margin: 0 auto;
+    padding: 18px 14px 24px;
+  }
+
+  .hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "brand"
+      "preview"
+      "studio";
+    gap: 14px;
+    align-items: start;
+  }
+
+  .brand-block {
+    grid-area: brand;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    max-width: none;
+    padding: 10px 0;
+  }
+
+  .brand-block h1 {
+    text-align: center;
+    flex: 1;
+  }
+
+  .hero-meta {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  :root[data-theme="dark"] .summary-chip,
+  :root[data-theme="dark"] input[type="text"],
+  :root[data-theme="dark"] .color-chip,
+  :root[data-theme="dark"] .custom-color-item,
+  :root[data-theme="dark"] .toggle-group,
+  :root[data-theme="dark"] .stepper {
+    background: #2a2620;
+  }
+
+  :root[data-theme="dark"] input[type="text"]:focus {
+    background: #312c25;
+  }
+
   h1 {
+    color: var(--ink);
     font-family: var(--font-display);
-    color: var(--ink); font-size: 48px; font-weight: 400;
-    letter-spacing: -1px; margin-bottom: 12px; line-height: 1.1;
+    font-size: 38px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0;
   }
-  .subtitle { color: var(--muted); font-size: 18px; margin-bottom: 48px; }
-  .main { display: flex; flex-direction: column; gap: 32px; align-items: center; width: 100%; max-width: 800px; }
-  .preview-section { display: flex; flex-direction: column; align-items: center; width: 100%; }
+
+  .theme-slot {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+  }
+
+  .preview-shell {
+    grid-area: preview;
+    min-width: 0;
+    width: min(1320px, 100%);
+    justify-self: center;
+  }
+
+  .stage {
+    overflow: hidden;
+    border: 1px solid rgba(255, 250, 240, 0.14);
+    border-radius: var(--radius);
+    background: #191815;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .stage-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--stage-line);
+    color: var(--on-dark-muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .stage-dots {
+    display: flex;
+    gap: 7px;
+    flex: 0 0 auto;
+  }
+
+  .stage-dots span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--primary);
+    opacity: 0.9;
+  }
+
+  .stage-dots span:nth-child(2) { background: #d7b66f; }
+  .stage-dots span:nth-child(3) { background: var(--accent); }
+
+  .stage-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .canvas-wrap {
-    background: var(--surface-dark); border-radius: var(--rounded-lg);
-    padding: 32px; position: relative; width: 100%; display: flex; justify-content: center;
-  }
-  canvas { display: block; border-radius: 4px; }
-  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; width: 100%; }
-  .control-group {
-    background: var(--surface-card); border-radius: var(--rounded-lg); padding: 24px;
-  }
-  .control-group.full-width { grid-column: 1 / -1; }
-  .control-group h3 {
-    color: var(--ink); font-size: 18px; font-weight: 500; margin-bottom: 20px;
-  }
-  .control-row { display: flex; align-items: center; margin-bottom: 12px; gap: 12px; }
-  .control-row label { width: 80px; font-size: 14px; color: var(--body-strong); flex-shrink: 0; font-weight: 500; }
-  .control-row input[type="range"] { flex: 1; accent-color: var(--primary); }
-  .control-row .value { width: 50px; text-align: right; font-size: 14px; color: var(--muted); }
-  .control-row select, .control-row input[type="text"] {
-    background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline);
-    border-radius: var(--rounded-md); padding: 10px 14px;
-    font-family: var(--font-body); font-size: 16px; width: 100%;
-    outline: none; transition: border-color 0.2s;
-  }
-  .control-row select:focus, .control-row input[type="text"]:focus { border-color: var(--primary); }
-  input[type="color"] {
-    width: 32px; height: 32px; padding: 0;
-    border: 1px solid var(--hairline); border-radius: var(--rounded-sm);
-    background: var(--canvas); cursor: pointer;
-  }
-  .color-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
-  .color-chip {
-    width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
-    border: 2px solid transparent; transition: transform 0.1s, border-color 0.2s;
-  }
-  .color-chip.active { border-color: var(--ink); transform: scale(1.1); }
-
-  /* Custom color circles (same as chips) */
-  .custom-color-row { display: flex; gap: 16px; margin-top: 20px; align-items: center; }
-  .custom-color-item { display: flex; align-items: center; gap: 8px; }
-  .custom-color-item label { font-size: 13px; color: var(--muted); font-weight: 500; width: auto; }
-  .color-circle-wrap {
-    width: 32px; height: 32px; border-radius: 50%; overflow: hidden;
-    border: 2px solid var(--hairline); position: relative; cursor: pointer;
-  }
-  .color-circle-wrap input[type="color"] {
-    position: absolute; top: -4px; left: -4px;
-    width: 40px; height: 40px; border: none; padding: 0; cursor: pointer;
-    background: transparent;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 36px 28px;
+    background: #1f1e1b;
   }
 
-  /* Stepper input with +/- buttons */
-  .stepper { display: flex; flex: 1; align-items: stretch; }
-  .stepper-btn {
-    width: 36px; height: 36px; border: 1px solid var(--hairline); background: var(--canvas);
-    color: var(--body-strong); font-size: 18px; font-weight: 500; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.15s; user-select: none; line-height: 1;
+  .canvas-wrap::after {
+    content: "";
+    position: absolute;
+    inset: 14px;
+    border: 1px solid rgba(255, 250, 240, 0.07);
+    border-radius: var(--radius);
+    pointer-events: none;
   }
-  .stepper-btn:hover { background: var(--surface-soft); }
-  .stepper-btn:active { background: var(--hairline); }
-  .stepper-btn:first-child { border-radius: var(--rounded-md) 0 0 var(--rounded-md); }
-  .stepper-btn:last-child { border-radius: 0 var(--rounded-md) var(--rounded-md) 0; }
-  .stepper-input {
-    width: 60px; height: 36px; border: 1px solid var(--hairline); border-left: none; border-right: none;
-    background: var(--canvas); color: var(--ink); font-family: var(--font-code); font-size: 14px;
-    text-align: center; outline: none; -moz-appearance: textfield;
-  }
-  .stepper-input::-webkit-inner-spin-button,
-  .stepper-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-  .stepper-input:focus { background: var(--surface-soft); }
 
-  /* Direction toggle buttons */
-  .toggle-group { display: flex; gap: 0; flex: 1; }
-  .toggle-btn {
-    flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 500;
-    font-family: var(--font-body); border: 1px solid var(--hairline);
-    background: var(--canvas); color: var(--muted); cursor: pointer;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .toggle-btn:first-child { border-radius: var(--rounded-md) 0 0 var(--rounded-md); border-right: none; }
-  .toggle-btn:last-child { border-radius: 0 var(--rounded-md) var(--rounded-md) 0; }
-  .toggle-btn.active {
-    background: var(--primary); color: var(--on-primary); border-color: var(--primary);
-  }
-  .btn {
-    background: var(--primary); color: var(--on-primary); border: none;
-    border-radius: var(--rounded-md); padding: 12px 20px;
-    font-family: var(--font-body); font-size: 14px; font-weight: 500;
-    cursor: pointer; transition: background 0.2s; height: 40px;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-  .btn:hover { background: var(--primary-active); }
-  .btn:disabled { background: var(--primary-disabled); color: var(--muted); cursor: not-allowed; }
-  .btn-row { display: flex; gap: 12px; margin-top: 24px; }
-  .btn.secondary { background: var(--canvas); color: var(--ink); border: 1px solid var(--hairline); }
-  .btn.secondary:hover { background: var(--surface-card); }
-  .status { font-size: 13px; color: var(--muted); margin-top: 12px; min-height: 18px; font-weight: 500; }
-  .export-section { margin-top: 24px; text-align: center; width: 100%; }
-  .progress-bar {
-    width: 100%; height: 6px; background: var(--hairline); border-radius: 9999px;
-    margin-top: 12px; overflow: hidden; display: none;
-  }
-  .progress-bar .fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.1s; }
   .canvas-wrap.transparent {
-    background: repeating-conic-gradient(var(--surface-dark-elevated) 0% 25%, var(--surface-dark) 0% 50%) 50%/16px 16px;
+    background:
+      linear-gradient(45deg, rgba(255, 250, 240, 0.07) 25%, transparent 25% 75%, rgba(255, 250, 240, 0.07) 75%),
+      linear-gradient(45deg, rgba(255, 250, 240, 0.07) 25%, transparent 25% 75%, rgba(255, 250, 240, 0.07) 75%),
+      linear-gradient(145deg, #191815, #23211d);
+    background-position: 0 0, 12px 12px, 0 0;
+    background-size: 24px 24px, 24px 24px, auto;
+  }
+
+  canvas {
+    position: relative;
+    z-index: 1;
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+    box-shadow: none;
+  }
+
+  .export-panel {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border-top: 1px solid var(--stage-line);
+    background: rgba(14, 14, 12, 0.52);
+  }
+
+  .export-copy {
+    min-width: 0;
+  }
+
+  .export-title {
+    color: var(--on-dark);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .status {
+    min-height: 16px;
+    margin-top: 3px;
+    color: var(--on-dark-muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    border-radius: var(--radius);
+    padding: 0 13px;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-size: 13px;
+    font-weight: 800;
+    transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
+  }
+
+  .btn:hover {
+    background: var(--primary-active);
+    transform: translateY(-1px);
+    box-shadow: none;
+  }
+
+  .btn:disabled {
+    background: #d9c8bb;
+    color: #8f7f71;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .btn.secondary {
+    border: 1px solid rgba(255, 250, 240, 0.16);
+    background: rgba(255, 250, 240, 0.08);
+    color: var(--on-dark);
+  }
+
+  .btn.secondary:hover {
+    background: rgba(255, 250, 240, 0.16);
+    box-shadow: none;
+  }
+
+  .progress-bar {
+    grid-column: 1 / -1;
+    display: none;
+    width: 100%;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 250, 240, 0.12);
+  }
+
+  .progress-bar .fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), #e2b676);
+    transition: width 100ms linear;
+  }
+
+  .studio {
+    grid-area: studio;
+    margin-top: 0;
+    padding-top: 0;
+    width: min(1320px, 100%);
+    justify-self: center;
+  }
+
+  .studio-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .studio-kicker {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .studio h2 {
+    margin-top: 4px;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: 0;
+  }
+
+  .summary-chip {
+    flex: 0 1 auto;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 7px 10px;
+    color: var(--body);
+    background: rgba(255, 250, 240, 0.62);
+    font-family: var(--font-code);
+    font-size: 12px;
+  }
+
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(260px, 1fr));
+    gap: 10px;
+    align-items: start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+
+  .control-group {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    background: var(--surface);
+    box-shadow: var(--shadow-md);
+  }
+
+  .control-group:first-child {
+    min-width: 300px;
+  }
+
+  .control-group h3 {
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 900;
+    margin-bottom: 9px;
+  }
+
+  .field-note {
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .control-row {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr) 48px;
+    gap: 8px;
+    align-items: center;
+    min-height: 32px;
+    margin-top: 8px;
+  }
+
+  .control-row:first-of-type { margin-top: 0; }
+
+  .control-row.wide {
+    grid-template-columns: 1fr;
+  }
+
+  .control-row label,
+  .custom-color-item label {
+    color: var(--body);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .control-row .value {
+    color: var(--muted);
+    font-family: var(--font-code);
+    font-size: 12px;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    height: 38px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0 11px;
+    background: rgba(255, 250, 240, 0.76);
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 650;
+    transition: border 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  input[type="text"]:focus {
+    border-color: rgba(200, 101, 74, 0.55);
+    background: var(--surface-strong);
+    box-shadow: 0 0 0 4px rgba(200, 101, 74, 0.1);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--primary);
+  }
+
+  .color-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .color-chip {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+    background: rgba(255, 250, 240, 0.58);
+    color: var(--body);
+    text-align: left;
+    transition: border 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+
+  .color-chip:hover {
+    border-color: var(--line-strong);
+    transform: translateY(-1px);
+  }
+
+  .color-chip.active {
+    border-color: rgba(200, 101, 74, 0.62);
+    background: rgba(255, 250, 240, 0.88);
+    box-shadow: 0 0 0 3px rgba(200, 101, 74, 0.1);
+  }
+
+  .chip-dot {
+    width: 20px;
+    height: 20px;
+    border: 1px solid rgba(23, 22, 20, 0.16);
+    border-radius: 50%;
+  }
+
+  .chip-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  .chip-sheen {
+    width: 16px;
+    height: 16px;
+    border: 1px solid rgba(23, 22, 20, 0.14);
+    border-radius: 50%;
+  }
+
+  .custom-color-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 8px;
+  }
+
+  .custom-color-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 6px 8px;
+    background: rgba(255, 250, 240, 0.46);
+  }
+
+  .color-circle-wrap {
+    position: relative;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border: 1px solid rgba(23, 22, 20, 0.14);
+    border-radius: 50%;
+  }
+
+  .color-circle-wrap input[type="color"] {
+    position: absolute;
+    inset: -5px;
+    width: 34px;
+    height: 34px;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  .toggle-group {
+    display: flex;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: rgba(255, 250, 240, 0.52);
+  }
+
+  .toggle-btn {
+    flex: 1;
+    min-height: 32px;
+    padding: 0 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 850;
+    transition: background 160ms ease, color 160ms ease;
+  }
+
+  .toggle-btn + .toggle-btn { border-left: 1px solid var(--line); }
+
+  .toggle-btn.active {
+    background: var(--ink);
+    color: var(--on-dark);
+  }
+
+  .stepper {
+    display: grid;
+    grid-template-columns: 32px minmax(48px, 1fr) 32px;
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: rgba(255, 250, 240, 0.52);
+  }
+
+  .stepper-btn {
+    min-height: 32px;
+    background: transparent;
+    color: var(--body);
+    font-size: 18px;
+    font-weight: 800;
+    transition: background 160ms ease;
+  }
+
+  .stepper-btn:hover { background: rgba(200, 101, 74, 0.1); }
+
+  .stepper-input {
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    border-inline: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    font-family: var(--font-code);
+    font-size: 12px;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+
+  .stepper-input::-webkit-inner-spin-button,
+  .stepper-input::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+  }
+
+  .export-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .export-grid .control-row {
+    display: block;
+    margin-top: 0;
+  }
+
+  .export-grid label {
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  .export-summary {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    margin-top: 2px;
+    padding-top: 9px;
+  }
+
+  .summary-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .summary-value {
+    margin-top: 3px;
+    color: var(--ink);
+    font-family: var(--font-code);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 1ms !important;
+      scroll-behavior: auto !important;
+      transition-duration: 1ms !important;
+    }
+
+    .theme-transitioning::view-transition-new(root),
+    .theme-transitioning::view-transition-old(root) {
+      animation: none !important;
+    }
+  }
+
+  @media (max-width: 1180px) {
+    .page {
+      width: 100%;
+      padding: 16px 12px 24px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr;
+      grid-template-areas:
+        "brand"
+        "preview"
+        "studio";
+      gap: 12px;
+    }
+
+    .brand-block {
+      display: block;
+      max-width: none;
+    }
+
+    h1 { font-size: 34px; }
+
+    .hero-meta {
+      position: static;
+      transform: none;
+      justify-content: center;
+      margin-top: 8px;
+    }
+  }
+
+  @media (max-width: 620px) {
+    .page {
+      width: 100%;
+      padding: 14px 12px 28px;
+    }
+
+    h1 { font-size: 32px; }
+
+    .brand-block {
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .hero-meta {
+      position: static;
+      transform: none;
+    }
+
+    .stage-topbar {
+      padding: 9px 10px;
+    }
+
+    .canvas-wrap {
+      padding: 28px 14px;
+    }
+
+    .canvas-wrap::after {
+      inset: 10px;
+    }
+
+    .export-panel {
+      grid-template-columns: 1fr;
+      padding: 10px;
+    }
+
+    .btn-row {
+      justify-content: stretch;
+    }
+
+    .btn {
+      flex: 1 1 120px;
+      padding: 0 12px;
+    }
+
+    .studio-header {
+      display: block;
+    }
+
+    .summary-chip {
+      display: block;
+      width: fit-content;
+      max-width: 100%;
+      margin-top: 12px;
+      white-space: normal;
+    }
+
+    .control-group {
+      padding: 11px;
+    }
+
+    .control-row {
+      grid-template-columns: 74px minmax(0, 1fr) 50px;
+    }
+
+    .custom-color-row,
+    .export-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .export-summary {
+      grid-column: auto;
+    }
   }
 </style>
 </head>
 <body>
-
-<h1>✦ Claude Code Spinner</h1>
-<p class="subtitle">Warm editorial interface · GIF export tool</p>
-
-<div class="main">
-  <div class="preview-section">
-    <div class="canvas-wrap" id="canvasWrap">
-      <canvas id="canvas" width="400" height="80"></canvas>
-    </div>
-    <div class="export-section">
-      <div class="btn-row">
-        <button class="btn" id="btnExportGif" onclick="exportGif()">Export GIF</button>
-        <button class="btn secondary" id="btnExportPng" onclick="exportPng()">Export PNG</button>
-        <button class="btn secondary" id="btnToggleBg" onclick="toggleBg()">Transparent</button>
+  <main class="page">
+    <section class="hero">
+      <div class="brand-block">
+        <h1>Claude Code Spinner</h1>
+        <div class="hero-meta" aria-label="Top controls">
+          <button class="language-toggle" id="languageToggle" type="button" aria-label="Switch language" onclick="toggleLanguage()">中文</button>
+          <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark theme" onclick="toggleTheme(event)">
+            <svg class="sun-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="4"></circle>
+              <path d="M12 2v2"></path>
+              <path d="M12 20v2"></path>
+              <path d="m4.93 4.93 1.41 1.41"></path>
+              <path d="m17.66 17.66 1.41 1.41"></path>
+              <path d="M2 12h2"></path>
+              <path d="M20 12h2"></path>
+              <path d="m6.34 17.66-1.41 1.41"></path>
+              <path d="m19.07 4.93-1.41 1.41"></path>
+            </svg>
+            <svg class="moon-icon" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.99 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 20.99 12.79Z"></path>
+            </svg>
+          </button>
+        </div>
       </div>
-      <div class="status" id="status"></div>
-      <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
-    </div>
-  </div>
 
-  <div class="controls">
-    <div class="control-group full-width">
-      <h3>Message</h3>
-      <div class="control-row">
-        <input type="text" id="inputText" placeholder="Leave empty for auto-cycle..." oninput="onInputChange()">
+      <div class="preview-shell">
+        <section class="stage" aria-label="Live spinner preview" data-i18n-aria-label="previewAria">
+          <div class="stage-topbar">
+            <div class="stage-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div class="stage-label" id="stageLabel">Live Preview · Anthropic Coral · Opaque</div>
+          </div>
+          <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="canvas" width="400" height="80"></canvas>
+          </div>
+          <div class="export-panel">
+            <div class="export-copy">
+              <div class="export-title" data-i18n="exportReady">Export ready</div>
+              <div class="status" id="status">400 x 80 · 15 fps · 3s · Opaque background</div>
+            </div>
+            <div class="btn-row">
+              <button class="btn" id="btnExportGif" onclick="exportGif()" data-i18n="exportGif">Export GIF</button>
+              <button class="btn secondary" id="btnExportPng" onclick="exportPng()">PNG</button>
+              <button class="btn secondary" id="btnToggleBg" onclick="toggleBg()" data-i18n="transparent">Transparent</button>
+            </div>
+            <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+          </div>
+        </section>
       </div>
-    </div>
+    </section>
 
-    <div class="control-group">
-      <h3>Brand Accent</h3>
-      <div class="color-row" id="colorChips"></div>
-      <div class="custom-color-row">
-        <div class="custom-color-item">
-          <label>Base</label>
-          <div class="color-circle-wrap">
-            <input type="color" id="customMsg" value="#cc785c" onchange="onCustomColor()" oninput="onCustomColor()">
+    <section class="studio" aria-label="Spinner controls" data-i18n-aria-label="controlsAria">
+      <div class="studio-header">
+        <div>
+          <div class="studio-kicker" data-i18n="controlStudio">Control studio</div>
+          <h2 data-i18n="shapeLoop">Shape the loop</h2>
+        </div>
+        <div class="summary-chip" id="gifSizeEst">400 x 80 · 15 fps · 3s</div>
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <h3 data-i18n="content">Content</h3>
+          <div class="control-row wide">
+            <input type="text" id="inputText" placeholder="Leave empty for auto-cycle..." data-i18n-placeholder="messagePlaceholder" oninput="onInputChange()">
+          </div>
+          <p class="field-note" data-i18n="messageNote">Empty message rotates through built-in verbs.</p>
+
+          <h3 style="margin-top:20px" data-i18n="brandAccent">Brand Accent</h3>
+          <div class="color-row" id="colorChips"></div>
+          <div class="custom-color-row">
+            <div class="custom-color-item">
+              <label for="customMsg" data-i18n="base">Base</label>
+              <div class="color-circle-wrap">
+                <input type="color" id="customMsg" value="#cc785c" onchange="onCustomColor()" oninput="onCustomColor()">
+              </div>
+            </div>
+            <div class="custom-color-item">
+              <label for="customShim" data-i18n="highlight">Highlight</label>
+              <div class="color-circle-wrap">
+                <input type="color" id="customShim" value="#faf9f5" onchange="onCustomColor()" oninput="onCustomColor()">
+              </div>
+            </div>
           </div>
         </div>
-        <div class="custom-color-item">
-          <label>Highlight</label>
-          <div class="color-circle-wrap">
-            <input type="color" id="customShim" value="#f5f0e8" onchange="onCustomColor()" oninput="onCustomColor()">
+
+        <div class="control-group">
+          <h3 data-i18n="motion">Motion</h3>
+          <div class="control-row">
+            <label data-i18n="direction">Direction</label>
+            <div class="toggle-group">
+              <button class="toggle-btn" id="btnRtl" onclick="setDir('rtl')">RTL</button>
+              <button class="toggle-btn" id="btnLtr" onclick="setDir('ltr')">LTR</button>
+            </div>
+            <span class="value" id="dirVal">RTL</span>
+          </div>
+          <div class="control-row">
+            <label for="shimWidth" data-i18n="window">Window</label>
+            <input type="range" id="shimWidth" min="1" max="10" value="3" oninput="onControlChange()">
+            <span class="value" id="shimWidthVal">3</span>
+          </div>
+          <div class="control-row">
+            <label for="shimSpeed" data-i18n="speed">Speed</label>
+            <input type="range" id="shimSpeed" min="0.5" max="5" step="0.1" value="1.5" oninput="onControlChange()">
+            <span class="value" id="shimSpeedVal">1.5s</span>
+          </div>
+          <div class="control-row">
+            <label for="shimIntensity" data-i18n="intensity">Intensity</label>
+            <input type="range" id="shimIntensity" min="0" max="100" value="100" oninput="onControlChange()">
+            <span class="value" id="shimIntensityVal">100%</span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <h3 data-i18n="export">Export</h3>
+          <div class="export-grid">
+            <div class="control-row">
+              <label for="fontSize" data-i18n="font">Font</label>
+              <div class="stepper">
+                <button class="stepper-btn" onclick="stepVal('fontSize',-2)">-</button>
+                <input type="number" class="stepper-input" id="fontSize" min="8" max="40" value="34" onchange="onControlChange()">
+                <button class="stepper-btn" onclick="stepVal('fontSize',2)">+</button>
+              </div>
+            </div>
+            <div class="control-row">
+              <label for="fps" data-i18n="fps">FPS</label>
+              <div class="stepper">
+                <button class="stepper-btn" onclick="stepVal('fps',-5)">-</button>
+                <input type="number" class="stepper-input" id="fps" min="1" max="60" value="15" onchange="onControlChange()">
+                <button class="stepper-btn" onclick="stepVal('fps',5)">+</button>
+              </div>
+            </div>
+            <div class="control-row">
+              <label for="gifDuration" data-i18n="duration">Duration</label>
+              <div class="stepper">
+                <button class="stepper-btn" onclick="stepVal('gifDuration',-0.5)">-</button>
+                <input type="number" class="stepper-input" id="gifDuration" min="0.5" max="20" step="0.5" value="3" onchange="onControlChange()">
+                <button class="stepper-btn" onclick="stepVal('gifDuration',0.5)">+</button>
+              </div>
+            </div>
+            <div class="control-row">
+              <label for="canvasWidth" data-i18n="width">Width</label>
+              <div class="stepper">
+                <button class="stepper-btn" onclick="stepCanvas('w',-50)">-</button>
+                <input type="number" class="stepper-input" id="canvasWidth" min="100" max="1200" step="10" value="400" onchange="onResize()">
+                <button class="stepper-btn" onclick="stepCanvas('w',50)">+</button>
+              </div>
+            </div>
+            <div class="control-row">
+              <label for="canvasHeight" data-i18n="height">Height</label>
+              <div class="stepper">
+                <button class="stepper-btn" onclick="stepCanvas('h',-10)">-</button>
+                <input type="number" class="stepper-input" id="canvasHeight" min="40" max="400" step="5" value="80" onchange="onResize()">
+                <button class="stepper-btn" onclick="stepCanvas('h',10)">+</button>
+              </div>
+            </div>
+            <div class="export-summary">
+              <div class="summary-label" data-i18n="output">Output</div>
+              <div class="summary-value" id="exportSummary">400 x 80 · 15 fps · 3s</div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-
-    <div class="control-group">
-      <h3>Shimmer Effect</h3>
-      <div class="control-row">
-        <label>Direction</label>
-        <div class="toggle-group">
-          <button class="toggle-btn" id="btnRtl" onclick="setDir('rtl')">← RTL</button>
-          <button class="toggle-btn" id="btnLtr" onclick="setDir('ltr')">LTR →</button>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>Window</label>
-        <input type="range" id="shimWidth" min="1" max="10" value="3" oninput="onControlChange()">
-        <span class="value" id="shimWidthVal">3</span>
-      </div>
-      <div class="control-row">
-        <label>Speed</label>
-        <input type="range" id="shimSpeed" min="0.5" max="5" step="0.1" value="1.5" oninput="onControlChange()">
-        <span class="value" id="shimSpeedVal">1.5s</span>
-      </div>
-      <div class="control-row">
-        <label>Intensity</label>
-        <input type="range" id="shimIntensity" min="0" max="100" value="100" oninput="onControlChange()">
-        <span class="value" id="shimIntensityVal">100%</span>
-      </div>
-    </div>
-
-    <div class="control-group full-width">
-      <h3>Export Settings</h3>
-      <div class="control-row">
-        <label>Font Size</label>
-        <div class="stepper">
-          <button class="stepper-btn" onclick="stepVal('fontSize',-2)">−</button>
-          <input type="number" class="stepper-input" id="fontSize" min="8" max="40" value="34" onchange="onControlChange()">
-          <button class="stepper-btn" onclick="stepVal('fontSize',2)">+</button>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>Framerate</label>
-        <div class="stepper">
-          <button class="stepper-btn" onclick="stepVal('fps',-5)">−</button>
-          <input type="number" class="stepper-input" id="fps" min="1" max="60" value="15" onchange="onControlChange()">
-          <button class="stepper-btn" onclick="stepVal('fps',5)">+</button>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>Duration</label>
-        <div class="stepper">
-          <button class="stepper-btn" onclick="stepVal('gifDuration',-0.5)">−</button>
-          <input type="number" class="stepper-input" id="gifDuration" min="0.5" max="20" step="0.5" value="3" onchange="onControlChange()">
-          <button class="stepper-btn" onclick="stepVal('gifDuration',0.5)">+</button>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>Width</label>
-        <div class="stepper">
-          <button class="stepper-btn" onclick="stepCanvas('w',-50)">−</button>
-          <input type="number" class="stepper-input" id="canvasWidth" min="100" max="1200" step="10" value="400" onchange="onResize()">
-          <button class="stepper-btn" onclick="stepCanvas('w',50)">+</button>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>Height</label>
-        <div class="stepper">
-          <button class="stepper-btn" onclick="stepCanvas('h',-10)">−</button>
-          <input type="number" class="stepper-input" id="canvasHeight" min="40" max="400" step="5" value="80" onchange="onResize()">
-          <button class="stepper-btn" onclick="stepCanvas('h',10)">+</button>
-        </div>
-      </div>
-      <div class="control-row">
-        <label>GIF Size</label>
-        <span class="value" id="gifSizeEst" style="width:auto;color:var(--body-strong)">400 × 80</span>
-      </div>
-    </div>
-  </div>
-</div>
+    </section>
+  </main>
 
 <script>
-// === Spinner Config ===
 const SPINNER_CHARS = ['·', '✢', '✳', '✶', '✻', '✽'];
 const SPINNER_FRAMES = [...SPINNER_CHARS, ...[...SPINNER_CHARS].reverse()];
 
 const COLOR_SCHEMES = [
-  { name: 'Anthropic Coral', message: [204,120,92],  shimmer: [250,249,245] },
-  { name: 'Warm Amber',      message: [232,165,90],  shimmer: [255,255,255] },
-  { name: 'Teal',            message: [93,184,166],  shimmer: [255,255,255] },
-  { name: 'Canvas Muted',    message: [142,139,130], shimmer: [250,249,245] },
-  { name: 'On-Dark Cream',   message: [250,249,245], shimmer: [204,120,92]  },
+  { name: 'Anthropic Coral', message: [204, 120, 92], shimmer: [250, 249, 245] },
+  { name: 'Warm Amber', message: [226, 166, 92], shimmer: [255, 250, 239] },
+  { name: 'Sage Signal', message: [82, 117, 104], shimmer: [238, 245, 230] },
+  { name: 'Graphite Cream', message: [250, 249, 245], shimmer: [204, 120, 92] },
+  { name: 'Slate Blue', message: [92, 119, 151], shimmer: [246, 248, 250] },
 ];
 
 const DEFAULT_VERBS = [
@@ -305,7 +1071,85 @@ const DEFAULT_VERBS = [
   'Thinking','Tinkering','Warping','Whisking','Wrangling','Zigzagging',
 ];
 
-// === State ===
+const I18N = {
+  en: {
+    title: 'Claude Code Spinner',
+    languageButton: '中文',
+    switchLanguage: 'Switch language',
+    switchToDark: 'Switch to dark theme',
+    switchToLight: 'Switch to light theme',
+    previewAria: 'Live spinner preview',
+    controlsAria: 'Spinner controls',
+    livePreview: 'Live Preview',
+    opaque: 'Opaque',
+    transparent: 'Transparent',
+    background: 'background',
+    exportReady: 'Export ready',
+    exportGif: 'Export GIF',
+    controlStudio: 'Control studio',
+    shapeLoop: 'Shape the loop',
+    content: 'Content',
+    messagePlaceholder: 'Leave empty for auto-cycle...',
+    messageNote: 'Empty message rotates through built-in verbs.',
+    brandAccent: 'Brand Accent',
+    base: 'Base',
+    highlight: 'Highlight',
+    motion: 'Motion',
+    direction: 'Direction',
+    window: 'Window',
+    speed: 'Speed',
+    intensity: 'Intensity',
+    export: 'Export',
+    font: 'Font',
+    fps: 'FPS',
+    duration: 'Duration',
+    width: 'Width',
+    height: 'Height',
+    output: 'Output',
+    generating: 'Generating GIF...',
+    exported: ({ w, h, frames, duration }) => `Exported (${w}x${h}, ${frames} frames, ${duration}s)`,
+    exportFailed: message => `Export failed: ${message}`,
+  },
+  zh: {
+    title: 'Claude Code Spinner',
+    languageButton: 'EN',
+    switchLanguage: '切换语言',
+    switchToDark: '切换到暗色主题',
+    switchToLight: '切换到亮色主题',
+    previewAria: '实时加载动画预览',
+    controlsAria: '加载动画控制面板',
+    livePreview: '实时预览',
+    opaque: '不透明',
+    transparent: '透明',
+    background: '背景',
+    exportReady: '可导出',
+    exportGif: '导出 GIF',
+    controlStudio: '控制台',
+    shapeLoop: '调整循环动画',
+    content: '内容',
+    messagePlaceholder: '留空则自动轮播...',
+    messageNote: '消息留空时会自动轮换内置动词。',
+    brandAccent: '品牌配色',
+    base: '主色',
+    highlight: '高光',
+    motion: '动效',
+    direction: '方向',
+    window: '窗口',
+    speed: '速度',
+    intensity: '强度',
+    export: '导出',
+    font: '字体',
+    fps: '帧率',
+    duration: '时长',
+    width: '宽度',
+    height: '高度',
+    output: '输出',
+    generating: '正在生成 GIF...',
+    exported: ({ w, h, frames, duration }) => `已导出 (${w}x${h}, ${frames} 帧, ${duration}s)`,
+    exportFailed: message => `导出失败: ${message}`,
+  },
+};
+
 let state = {
   text: '', verb: randomVerb(), tick: 0,
   colorIdx: 0, customMsg: null, customShim: null,
@@ -313,37 +1157,151 @@ let state = {
   fps: 15, gifDuration: 3, canvasWidth: 400, canvasHeight: 80, transparentBg: false,
   fontSize: 34,
 };
-let lastSweepId = -1, lastFrameTime = 0;
+
+let currentLang = 'en';
+
+let lastSweepId = -1;
+let lastFrameTime = 0;
 
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 
+function getCurrentTheme() {
+  return document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light';
+}
+
+function getPreference(key, fallback) {
+  try {
+    return localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setPreference(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Preferences are optional; the tool should still work without storage.
+  }
+}
+
+function t(key) {
+  return I18N[currentLang][key] ?? I18N.en[key] ?? key;
+}
+
+function applyLanguage(lang) {
+  currentLang = I18N[lang] ? lang : 'en';
+  document.documentElement.lang = currentLang === 'zh' ? 'zh-CN' : 'en';
+  setPreference('spinner-language', currentLang);
+  document.title = t('title');
+
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+  });
+  document.querySelectorAll('[data-i18n-aria-label]').forEach(el => {
+    el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
+  });
+
+  const langBtn = document.getElementById('languageToggle');
+  if (langBtn) {
+    langBtn.textContent = t('languageButton');
+    langBtn.setAttribute('aria-label', t('switchLanguage'));
+  }
+
+  updateThemeA11y();
+  updateUiSummary();
+}
+
+function toggleLanguage() {
+  applyLanguage(currentLang === 'en' ? 'zh' : 'en');
+}
+
+function updateThemeA11y() {
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.setAttribute('aria-label', getCurrentTheme() === 'dark' ? t('switchToLight') : t('switchToDark'));
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  setPreference('spinner-theme', theme);
+  updateThemeA11y();
+}
+
+function toggleTheme(event) {
+  if (document.documentElement.classList.contains('theme-transitioning')) return;
+  const nextTheme = getCurrentTheme() === 'dark' ? 'light' : 'dark';
+  const btn = event.currentTarget;
+  btn.disabled = true;
+  const rect = btn.getBoundingClientRect();
+  const x = rect.left + rect.width / 2;
+  const y = rect.top + rect.height / 2;
+  const maxX = Math.max(x, window.innerWidth - x);
+  const maxY = Math.max(y, window.innerHeight - y);
+  const radius = Math.hypot(maxX, maxY);
+
+  document.documentElement.style.setProperty('--theme-x', `${x}px`);
+  document.documentElement.style.setProperty('--theme-y', `${y}px`);
+  document.documentElement.style.setProperty('--theme-radius', `${Math.ceil(radius)}px`);
+
+  if (!document.startViewTransition) {
+    applyTheme(nextTheme);
+    btn.disabled = false;
+    return;
+  }
+
+  document.documentElement.classList.add('theme-transitioning');
+  const transition = document.startViewTransition(() => applyTheme(nextTheme));
+  transition.finished.finally(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.documentElement.classList.remove('theme-transitioning');
+        btn.disabled = false;
+      });
+    });
+  });
+}
+
 function randomVerb() { return DEFAULT_VERBS[Math.floor(Math.random() * DEFAULT_VERBS.length)]; }
 function getMessageColor() { return state.customMsg || COLOR_SCHEMES[state.colorIdx].message; }
 function getShimmerColor() { return state.customShim || COLOR_SCHEMES[state.colorIdx].shimmer; }
-
+function getSchemeName() { return state.customMsg || state.customShim ? 'Custom Accent' : COLOR_SCHEMES[state.colorIdx].name; }
 function rgb(c) { return `rgb(${c[0]},${c[1]},${c[2]})`; }
+
 function lerpColor(c1, c2, t) {
-  return [Math.round(c1[0]+(c2[0]-c1[0])*t), Math.round(c1[1]+(c2[1]-c1[1])*t), Math.round(c1[2]+(c2[2]-c1[2])*t)];
+  return [
+    Math.round(c1[0] + (c2[0] - c1[0]) * t),
+    Math.round(c1[1] + (c2[1] - c1[1]) * t),
+    Math.round(c1[2] + (c2[2] - c1[2]) * t)
+  ];
 }
 
 function computeGlimmerIndex(tick, msgWidth, dir, padding) {
   const cycle = msgWidth + padding * 2;
   return dir === 'ltr' ? (tick % cycle) - padding : msgWidth + padding - (tick % cycle);
 }
+
 function computeSegments(text, glimmerIdx, windowWidth) {
   const half = Math.floor(windowWidth / 2);
-  const start = glimmerIdx - half, end = glimmerIdx + (windowWidth - half - 1);
+  const start = glimmerIdx - half;
+  const end = glimmerIdx + (windowWidth - half - 1);
   if (start >= text.length || end < 0) return { before: text, shimmer: '', after: '' };
+
   const cs = Math.max(0, start);
-  let before='', shimmer='', after='';
+  let before = '';
+  let shimmer = '';
+  let after = '';
   for (let i = 0; i < text.length; i++) {
-    if (i < cs) before += text[i]; else if (i > end) after += text[i]; else shimmer += text[i];
+    if (i < cs) before += text[i];
+    else if (i > end) after += text[i];
+    else shimmer += text[i];
   }
   return { before, shimmer, after };
 }
 
-// Glyph width cache (recalculated on font size change)
 let GLYPH_WIDTH = 0;
 function measureGlyphWidth(fontSize) {
   const glyphSize = Math.round(fontSize * 1.5);
@@ -355,17 +1313,22 @@ function measureGlyphWidth(fontSize) {
 }
 measureGlyphWidth(state.fontSize);
 
-// === Render ===
 function render() {
   const W = state.canvasWidth;
   const H = state.canvasHeight;
-  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W;
+    canvas.height = H;
+  }
 
-  if (!state.transparentBg) { ctx.fillStyle = '#181715'; ctx.fillRect(0, 0, W, H); }
-  else { ctx.clearRect(0, 0, W, H); }
+  if (!state.transparentBg) {
+    ctx.fillStyle = '#181715';
+    ctx.fillRect(0, 0, W, H);
+  } else {
+    ctx.clearRect(0, 0, W, H);
+  }
 
-  const display = state.text.trim() || state.verb;
-  const fullText = display;
+  const fullText = state.text.trim() || state.verb;
   const frame = Math.floor(state.tick / 2) % SPINNER_FRAMES.length;
   const spinnerChar = SPINNER_FRAMES[frame];
   const msgColor = getMessageColor();
@@ -384,68 +1347,97 @@ function render() {
   const fs = state.fontSize;
   const glyphSize = Math.round(fs * 1.5);
 
-  // Glyph
   ctx.font = `${glyphSize}px "JetBrains Mono", monospace`;
   ctx.fillStyle = rgb(msgColor);
   const charW = ctx.measureText(spinnerChar).width;
   ctx.fillText(spinnerChar, x + (GLYPH_WIDTH - charW) / 2, y);
   x += GLYPH_WIDTH + 16;
 
-  // Shimmer text
   ctx.font = `${fs}px "JetBrains Mono", monospace`;
-  if (segs.before) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.before, x, y); x += ctx.measureText(segs.before).width; }
-  if (segs.shimmer) { ctx.fillStyle = rgb(effShimmer); ctx.fillText(segs.shimmer, x, y); x += ctx.measureText(segs.shimmer).width; }
-  if (segs.after) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.after, x, y); }
+  if (segs.before) {
+    ctx.fillStyle = rgb(msgColor);
+    ctx.fillText(segs.before, x, y);
+    x += ctx.measureText(segs.before).width;
+  }
+  if (segs.shimmer) {
+    ctx.fillStyle = rgb(effShimmer);
+    ctx.fillText(segs.shimmer, x, y);
+    x += ctx.measureText(segs.shimmer).width;
+  }
+  if (segs.after) {
+    ctx.fillStyle = rgb(msgColor);
+    ctx.fillText(segs.after, x, y);
+  }
 }
 
-// === Animation ===
 function animate(time) {
   if (time - lastFrameTime >= 1000 / state.fps) {
     lastFrameTime = time;
     const isUserInput = !!state.text.trim();
     if (!isUserInput) {
-      const ticksPerSweep = Math.max(1, Math.round(state.shimSpeed * 1000 / (1000/state.fps)));
+      const ticksPerSweep = Math.max(1, Math.round(state.shimSpeed * 1000 / (1000 / state.fps)));
       const sweepId = Math.floor(state.tick / ticksPerSweep);
       if (sweepId > 0 && sweepId !== lastSweepId) {
-        lastSweepId = sweepId; state.verb = randomVerb(); state.tick = 0; lastSweepId = -1;
+        lastSweepId = sweepId;
+        state.verb = randomVerb();
+        state.tick = 0;
+        lastSweepId = -1;
       }
     }
-    render(); state.tick++;
+    render();
+    state.tick++;
   }
   requestAnimationFrame(animate);
 }
 
-// === Controls ===
 function initColorChips() {
   const container = document.getElementById('colorChips');
   COLOR_SCHEMES.forEach((scheme, i) => {
-    const chip = document.createElement('div');
+    const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'color-chip' + (i === 0 ? ' active' : '');
-    chip.style.background = rgb(scheme.message);
     chip.title = scheme.name;
+    chip.innerHTML = `
+      <span class="chip-dot" style="background:${rgb(scheme.message)}"></span>
+      <span class="chip-name">${scheme.name}</span>
+      <span class="chip-sheen" style="background:${rgb(scheme.shimmer)}"></span>
+    `;
     chip.onclick = () => {
-      state.colorIdx = i; state.customMsg = null; state.customShim = null;
+      state.colorIdx = i;
+      state.customMsg = null;
+      state.customShim = null;
       document.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
       chip.classList.add('active');
+      updateUiSummary();
     };
     container.appendChild(chip);
   });
 }
-function onInputChange() { state.text = document.getElementById('inputText').value; }
+
+function onInputChange() {
+  state.text = document.getElementById('inputText').value;
+}
+
 function onCustomColor() {
   state.customMsg = hexToRgb(document.getElementById('customMsg').value);
   state.customShim = hexToRgb(document.getElementById('customShim').value);
   document.querySelectorAll('.color-chip').forEach(c => c.classList.remove('active'));
+  updateUiSummary();
 }
+
 function hexToRgb(hex) {
   const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
-  return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [204,120,92];
+  return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [204, 120, 92];
 }
+
 function setDir(dir) {
   state.shimDir = dir;
   document.getElementById('btnRtl').classList.toggle('active', dir === 'rtl');
   document.getElementById('btnLtr').classList.toggle('active', dir === 'ltr');
+  document.getElementById('dirVal').textContent = dir.toUpperCase();
+  updateUiSummary();
 }
+
 function onControlChange() {
   state.shimWidth = +document.getElementById('shimWidth').value;
   state.shimSpeed = +document.getElementById('shimSpeed').value;
@@ -459,13 +1451,23 @@ function onControlChange() {
   }
   document.getElementById('shimWidthVal').textContent = state.shimWidth;
   document.getElementById('shimSpeedVal').textContent = state.shimSpeed.toFixed(1) + 's';
-  document.getElementById('shimIntensityVal').textContent = Math.round(state.shimIntensity*100) + '%';
-  updateGifSizeEstimate();
+  document.getElementById('shimIntensityVal').textContent = Math.round(state.shimIntensity * 100) + '%';
+  updateUiSummary();
 }
 
-function updateGifSizeEstimate() {
-  document.getElementById('gifSizeEst').textContent = `${state.canvasWidth} × ${state.canvasHeight}`;
+function updateUiSummary() {
+  const bg = state.transparentBg ? t('transparent') : t('opaque');
+  const summary = `${state.canvasWidth} x ${state.canvasHeight} · ${state.fps} fps · ${state.gifDuration}s`;
+  document.getElementById('gifSizeEst').textContent = summary;
+  document.getElementById('exportSummary').textContent = `${summary} · ${bg}`;
+  document.getElementById('stageLabel').textContent = `${t('livePreview')} · ${getSchemeName()} · ${bg}`;
+
+  const status = document.getElementById('status');
+  if (!status.dataset.busy) {
+    status.textContent = `${summary} · ${bg} ${t('background')}`;
+  }
 }
+
 function stepVal(id, delta) {
   const el = document.getElementById(id);
   const step = +el.step || 1;
@@ -473,6 +1475,7 @@ function stepVal(id, delta) {
   el.value = Math.max(+el.min, Math.min(+el.max, newVal));
   onControlChange();
 }
+
 function stepCanvas(dim, delta) {
   if (dim === 'w') {
     const el = document.getElementById('canvasWidth');
@@ -483,91 +1486,123 @@ function stepCanvas(dim, delta) {
     el.value = Math.max(+el.min, Math.min(+el.max, +el.value + delta));
     state.canvasHeight = +el.value;
   }
-  updateGifSizeEstimate();
+  updateUiSummary();
 }
+
 function onResize() {
   state.canvasWidth = +document.getElementById('canvasWidth').value;
   state.canvasHeight = +document.getElementById('canvasHeight').value;
-  updateGifSizeEstimate();
+  updateUiSummary();
 }
+
 function toggleBg() {
   state.transparentBg = !state.transparentBg;
   document.getElementById('canvasWrap').classList.toggle('transparent', state.transparentBg);
-  document.getElementById('btnToggleBg').textContent = state.transparentBg ? 'Opaque' : 'Transparent';
+  document.getElementById('btnToggleBg').textContent = state.transparentBg ? t('opaque') : t('transparent');
+  updateUiSummary();
 }
 
-// === GIF Export ===
 function exportGif() {
   const btn = document.getElementById('btnExportGif');
   const status = document.getElementById('status');
   const bar = document.getElementById('progressBar');
   const fill = document.getElementById('progressFill');
-  btn.disabled = true; status.textContent = 'Generating GIF...';
-  bar.style.display = 'block'; fill.style.width = '0%';
+  btn.disabled = true;
+  status.dataset.busy = '1';
+  status.textContent = t('generating');
+  bar.style.display = 'block';
+  fill.style.width = '0%';
 
   const savedTick = state.tick;
   const totalFrames = Math.round(state.gifDuration * state.fps);
   const delayMs = Math.round(1000 / state.fps);
-  const w = canvas.width, h = canvas.height;
+  const w = canvas.width;
+  const h = canvas.height;
 
   const frameData = [];
   for (let i = 0; i < totalFrames; i++) {
-    state.tick = i; render();
+    state.tick = i;
+    render();
     frameData.push(new Uint8Array(ctx.getImageData(0, 0, w, h).data));
-    fill.style.width = Math.round((i+1) / totalFrames * 40) + '%';
+    fill.style.width = Math.round((i + 1) / totalFrames * 40) + '%';
   }
 
   setTimeout(() => {
     try {
       const gif = new GIFEncoder(w, h);
-      gif.setRepeat(0); gif.setDelay(delayMs);
+      gif.setRepeat(0);
+      gif.setDelay(delayMs);
       frameData.forEach((rgba, i) => {
         gif.addFrame(rgba, state.transparentBg);
-        fill.style.width = Math.round(40 + (i+1) / totalFrames * 60) + '%';
+        fill.style.width = Math.round(40 + (i + 1) / totalFrames * 60) + '%';
       });
       const blob = gif.toBlob();
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = 'claude-spinner.gif'; a.click();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'claude-spinner.gif';
+      a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status.textContent = `✓ Exported (${w}×${h}, ${totalFrames} frames, ${state.gifDuration}s)`;
-    } catch(e) { console.error(e); status.textContent = 'Export failed: ' + e.message; }
-    btn.disabled = false; bar.style.display = 'none'; state.tick = savedTick;
+      status.textContent = t('exported')({ w, h, frames: totalFrames, duration: state.gifDuration });
+    } catch(e) {
+      console.error(e);
+      status.textContent = t('exportFailed')(e.message);
+    }
+    btn.disabled = false;
+    bar.style.display = 'none';
+    state.tick = savedTick;
+    delete status.dataset.busy;
   }, 50);
 }
 
 function exportPng() {
   render();
-  const a = document.createElement('a'); a.href = canvas.toDataURL('image/png'); a.download = 'claude-spinner.png'; a.click();
+  const a = document.createElement('a');
+  a.href = canvas.toDataURL('image/png');
+  a.download = 'claude-spinner.png';
+  a.click();
 }
 
-// === GIF Encoder (per-frame Local Color Table, LZW) ===
 class GIFEncoder {
-  constructor(w, h) { this.width = w; this.height = h; this.delay = 100; this.repeat = 0; this.frames = []; }
+  constructor(w, h) {
+    this.width = w;
+    this.height = h;
+    this.delay = 100;
+    this.repeat = 0;
+    this.frames = [];
+  }
   setDelay(ms) { this.delay = ms; }
   setRepeat(n) { this.repeat = n; }
   addFrame(rgba, transparent) { this.frames.push({ rgba: new Uint8Array(rgba), transparent }); }
 
   toBlob() {
-    const buf = [], w = this.width, h = this.height;
-    this._s(buf, 'GIF89a'); this._u16(buf, w); this._u16(buf, h);
-    buf.push(0x70, 0, 0); // no GCT
-    buf.push(0x21, 0xFF, 0x0B); this._s(buf, 'NETSCAPE2.0');
-    buf.push(0x03, 0x01); this._u16(buf, this.repeat); buf.push(0x00);
+    const buf = [];
+    const w = this.width;
+    const h = this.height;
+    this._s(buf, 'GIF89a');
+    this._u16(buf, w);
+    this._u16(buf, h);
+    buf.push(0x70, 0, 0);
+    buf.push(0x21, 0xFF, 0x0B);
+    this._s(buf, 'NETSCAPE2.0');
+    buf.push(0x03, 0x01);
+    this._u16(buf, this.repeat);
+    buf.push(0x00);
 
     for (const { rgba, transparent } of this.frames) {
       const { indexed, palette, bgIdx } = this._quantize(rgba, transparent);
-
-      // GCE
       buf.push(0x21, 0xF9, 0x04);
       buf.push((2 << 2) | (transparent ? 1 : 0));
       this._u16(buf, Math.round(this.delay / 10));
       buf.push(transparent ? bgIdx : 0);
       buf.push(0x00);
 
-      // Image Descriptor + LCT
       buf.push(0x2C);
-      this._u16(buf, 0); this._u16(buf, 0); this._u16(buf, w); this._u16(buf, h);
-      buf.push(0x87); // LCT=1, 256 entries
+      this._u16(buf, 0);
+      this._u16(buf, 0);
+      this._u16(buf, w);
+      this._u16(buf, h);
+      buf.push(0x87);
       for (let i = 0; i < 256; i++) buf.push(palette[i][0], palette[i][1], palette[i][2]);
 
       this._lzw(buf, indexed, 8);
@@ -581,7 +1616,10 @@ class GIFEncoder {
     const total = this.width * this.height;
     const counts = new Map();
     for (let i = 0; i < total; i++) {
-      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
+      const r = rgba[i * 4];
+      const g = rgba[i * 4 + 1];
+      const b = rgba[i * 4 + 2];
+      const a = rgba[i * 4 + 3];
       if (transparent && a < 128) continue;
       const key = (r << 16) | (g << 8) | b;
       counts.set(key, (counts.get(key) || 0) + 1);
@@ -589,7 +1627,8 @@ class GIFEncoder {
 
     const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]);
     const top = sorted.slice(0, transparent ? 255 : 256);
-    const palette = [], keyToIdx = new Map();
+    const palette = [];
+    const keyToIdx = new Map();
     if (transparent) palette.push([0, 0, 0]);
     for (const [key] of top) {
       keyToIdx.set(key, palette.length);
@@ -599,8 +1638,14 @@ class GIFEncoder {
 
     const indexed = new Uint8Array(total);
     for (let i = 0; i < total; i++) {
-      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
-      if (transparent && a < 128) { indexed[i] = 0; continue; }
+      const r = rgba[i * 4];
+      const g = rgba[i * 4 + 1];
+      const b = rgba[i * 4 + 2];
+      const a = rgba[i * 4 + 3];
+      if (transparent && a < 128) {
+        indexed[i] = 0;
+        continue;
+      }
       const key = (r << 16) | (g << 8) | b;
       indexed[i] = keyToIdx.has(key) ? keyToIdx.get(key) : this._nearest(r, g, b, palette, transparent ? 1 : 0);
     }
@@ -611,60 +1656,83 @@ class GIFEncoder {
       for (let i = 0; i < palette.length; i++) {
         const [r, g, b] = palette[i];
         const lum = r * 0.299 + g * 0.587 + b * 0.114;
-        if (lum < minLum) { minLum = lum; bgIdx = i; }
+        if (lum < minLum) {
+          minLum = lum;
+          bgIdx = i;
+        }
       }
     }
     return { indexed, palette, bgIdx };
   }
 
   _nearest(r, g, b, palette, start) {
-    let best = start, bestD = Infinity;
+    let best = start;
+    let bestD = Infinity;
     for (let i = start; i < palette.length; i++) {
       const [pr, pg, pb] = palette[i];
-      const d = (r-pr)**2 + (g-pg)**2 + (b-pb)**2;
-      if (d < bestD) { bestD = d; best = i; }
+      const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
     }
     return best;
   }
 
   _lzw(buf, pixels, minCodeSize) {
     buf.push(minCodeSize);
-    const clear = 1 << minCodeSize, eoi = clear + 1;
-    const out = []; let bitBuf = 0, bitPos = 0, codeSize = minCodeSize + 1;
-    let nextCode = eoi + 1, table = new Map();
+    const clear = 1 << minCodeSize;
+    const eoi = clear + 1;
+    const out = [];
+    let bitBuf = 0;
+    let bitPos = 0;
+    let codeSize = minCodeSize + 1;
+    let nextCode = eoi + 1;
+    let table = new Map();
     for (let i = 0; i < clear; i++) table.set(String.fromCharCode(i), i);
 
     const emit = code => {
-      bitBuf |= code << bitPos; bitPos += codeSize;
-      while (bitPos >= 8) { out.push(bitBuf & 0xFF); bitBuf >>= 8; bitPos -= 8; }
+      bitBuf |= code << bitPos;
+      bitPos += codeSize;
+      while (bitPos >= 8) {
+        out.push(bitBuf & 0xFF);
+        bitBuf >>= 8;
+        bitPos -= 8;
+      }
     };
 
     emit(clear);
     let cur = String.fromCharCode(pixels[0]);
     for (let i = 1; i < pixels.length; i++) {
-      const ch = String.fromCharCode(pixels[i]), combined = cur + ch;
-      if (table.has(combined)) { cur = combined; }
-      else {
+      const ch = String.fromCharCode(pixels[i]);
+      const combined = cur + ch;
+      if (table.has(combined)) {
+        cur = combined;
+      } else {
         emit(table.get(cur));
         if (nextCode < 4096) {
           table.set(combined, nextCode);
           if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
           nextCode++;
         } else {
-          emit(clear); table = new Map();
+          emit(clear);
+          table = new Map();
           for (let j = 0; j < clear; j++) table.set(String.fromCharCode(j), j);
-          nextCode = eoi + 1; codeSize = minCodeSize + 1;
+          nextCode = eoi + 1;
+          codeSize = minCodeSize + 1;
         }
         cur = ch;
       }
     }
-    emit(table.get(cur)); emit(eoi);
+    emit(table.get(cur));
+    emit(eoi);
     if (bitPos > 0) out.push(bitBuf & 0xFF);
 
     let pos = 0;
     while (pos < out.length) {
       const cs = Math.min(255, out.length - pos);
-      buf.push(cs); for (let i = 0; i < cs; i++) buf.push(out[pos + i]);
+      buf.push(cs);
+      for (let i = 0; i < cs; i++) buf.push(out[pos + i]);
       pos += cs;
     }
     buf.push(0x00);
@@ -674,8 +1742,13 @@ class GIFEncoder {
   _u16(buf, n) { buf.push(n & 0xFF, (n >> 8) & 0xFF); }
 }
 
-// === Init ===
-initColorChips(); setDir('rtl'); onControlChange(); animate(0);
+applyTheme(getPreference('spinner-theme', 'light') === 'dark' ? 'dark' : 'light');
+currentLang = getPreference('spinner-language', 'en') === 'zh' ? 'zh' : 'en';
+initColorChips();
+setDir('rtl');
+onControlChange();
+applyLanguage(currentLang);
+animate(0);
 </script>
 </body>
 </html>
