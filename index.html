@@ -84,6 +84,34 @@
     border: 2px solid transparent; transition: transform 0.1s, border-color 0.2s;
   }
   .color-chip.active { border-color: var(--ink); transform: scale(1.1); }
+
+  /* Custom color circles (same as chips) */
+  .custom-color-row { display: flex; gap: 16px; margin-top: 20px; align-items: center; }
+  .custom-color-item { display: flex; align-items: center; gap: 8px; }
+  .custom-color-item label { font-size: 13px; color: var(--muted); font-weight: 500; width: auto; }
+  .color-circle-wrap {
+    width: 32px; height: 32px; border-radius: 50%; overflow: hidden;
+    border: 2px solid var(--hairline); position: relative; cursor: pointer;
+  }
+  .color-circle-wrap input[type="color"] {
+    position: absolute; top: -4px; left: -4px;
+    width: 40px; height: 40px; border: none; padding: 0; cursor: pointer;
+    background: transparent;
+  }
+
+  /* Direction toggle buttons */
+  .toggle-group { display: flex; gap: 0; flex: 1; }
+  .toggle-btn {
+    flex: 1; padding: 8px 12px; font-size: 13px; font-weight: 500;
+    font-family: var(--font-body); border: 1px solid var(--hairline);
+    background: var(--canvas); color: var(--muted); cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .toggle-btn:first-child { border-radius: var(--rounded-md) 0 0 var(--rounded-md); border-right: none; }
+  .toggle-btn:last-child { border-radius: 0 var(--rounded-md) var(--rounded-md) 0; }
+  .toggle-btn.active {
+    background: var(--primary); color: var(--on-primary); border-color: var(--primary);
+  }
   .btn {
     background: var(--primary); color: var(--on-primary); border: none;
     border-radius: var(--rounded-md); padding: 12px 20px;
@@ -117,6 +145,7 @@
   <div class="preview-section">
     <div class="canvas-wrap" id="canvasWrap">
       <canvas id="canvas" width="400" height="80"></canvas>
+      <div class="canvas-size" id="canvasSize" style="color:var(--on-dark-soft);font-size:12px;margin-top:8px;text-align:center;font-family:var(--font-code)"></div>
     </div>
     <div class="export-section">
       <div class="btn-row">
@@ -140,11 +169,19 @@
     <div class="control-group">
       <h3>Brand Accent</h3>
       <div class="color-row" id="colorChips"></div>
-      <div class="control-row" style="margin-top:20px">
-        <label>Base</label>
-        <input type="color" id="customMsg" value="#cc785c" onchange="onCustomColor()">
-        <label style="margin-left:12px;width:auto">Highlight</label>
-        <input type="color" id="customShim" value="#f5f0e8" onchange="onCustomColor()">
+      <div class="custom-color-row">
+        <div class="custom-color-item">
+          <label>Base</label>
+          <div class="color-circle-wrap">
+            <input type="color" id="customMsg" value="#cc785c" onchange="onCustomColor()" oninput="onCustomColor()">
+          </div>
+        </div>
+        <div class="custom-color-item">
+          <label>Highlight</label>
+          <div class="color-circle-wrap">
+            <input type="color" id="customShim" value="#f5f0e8" onchange="onCustomColor()" oninput="onCustomColor()">
+          </div>
+        </div>
       </div>
     </div>
 
@@ -152,10 +189,10 @@
       <h3>Shimmer Effect</h3>
       <div class="control-row">
         <label>Direction</label>
-        <select id="shimDir" onchange="onControlChange()">
-          <option value="rtl">← Right to Left</option>
-          <option value="ltr">→ Left to Right</option>
-        </select>
+        <div class="toggle-group">
+          <button class="toggle-btn" id="btnRtl" onclick="setDir('rtl')">← RTL</button>
+          <button class="toggle-btn" id="btnLtr" onclick="setDir('ltr')">LTR →</button>
+        </div>
       </div>
       <div class="control-row">
         <label>Window</label>
@@ -177,6 +214,11 @@
     <div class="control-group">
       <h3>Export Settings</h3>
       <div class="control-row">
+        <label>Font Size</label>
+        <input type="range" id="fontSize" min="10" max="28" value="16" oninput="onControlChange()">
+        <span class="value" id="fontSizeVal">16px</span>
+      </div>
+      <div class="control-row">
         <label>Framerate</label>
         <input type="range" id="fps" min="5" max="30" value="15" oninput="onControlChange()">
         <span class="value" id="fpsVal">15 fps</span>
@@ -190,6 +232,10 @@
         <label>Canvas W</label>
         <input type="range" id="canvasWidth" min="200" max="800" step="50" value="400" oninput="onResize()">
         <span class="value" id="canvasWidthVal">400</span>
+      </div>
+      <div class="control-row">
+        <label>Est. Size</label>
+        <span class="value" id="gifSizeEst" style="width:auto;color:var(--body-strong)">~0 KB</span>
       </div>
     </div>
   </div>
@@ -224,6 +270,7 @@ let state = {
   colorIdx: 0, customMsg: null, customShim: null,
   shimDir: 'rtl', shimWidth: 3, shimSpeed: 1.5, shimIntensity: 1.0,
   fps: 15, gifDuration: 3, canvasWidth: 400, transparentBg: false,
+  fontSize: 16,
 };
 let lastSweepId = -1, lastFrameTime = 0;
 
@@ -255,20 +302,26 @@ function computeSegments(text, glimmerIdx, windowWidth) {
   return { before, shimmer, after };
 }
 
-// Fixed glyph width
+// Glyph width cache (recalculated on font size change)
 let GLYPH_WIDTH = 0;
-(function measureGlyphWidth() {
+function measureGlyphWidth(fontSize) {
+  const glyphSize = Math.round(fontSize * 1.5);
   const c = document.createElement('canvas').getContext('2d');
-  c.font = '24px "JetBrains Mono", monospace';
+  c.font = `${glyphSize}px "JetBrains Mono", monospace`;
   let max = 0;
   for (const ch of SPINNER_FRAMES) max = Math.max(max, c.measureText(ch).width);
   GLYPH_WIDTH = max + 2;
-})();
+}
+measureGlyphWidth(state.fontSize);
 
 // === Render ===
 function render() {
-  const W = state.canvasWidth, H = 80;
-  if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
+  const W = state.canvasWidth;
+  const H = Math.max(60, state.fontSize * 4 + 16);
+  if (canvas.width !== W || canvas.height !== H) {
+    canvas.width = W; canvas.height = H;
+    document.getElementById('canvasSize').textContent = `${W} × ${H}`;
+  }
 
   if (!state.transparentBg) { ctx.fillStyle = '#181715'; ctx.fillRect(0, 0, W, H); }
   else { ctx.clearRect(0, 0, W, H); }
@@ -290,16 +343,18 @@ function render() {
   ctx.textBaseline = 'middle';
   const y = H / 2;
   let x = 24;
+  const fs = state.fontSize;
+  const glyphSize = Math.round(fs * 1.5);
 
   // Glyph
-  ctx.font = '24px "JetBrains Mono", monospace';
+  ctx.font = `${glyphSize}px "JetBrains Mono", monospace`;
   ctx.fillStyle = rgb(msgColor);
   const charW = ctx.measureText(spinnerChar).width;
   ctx.fillText(spinnerChar, x + (GLYPH_WIDTH - charW) / 2, y);
   x += GLYPH_WIDTH + 16;
 
   // Shimmer text
-  ctx.font = '16px "JetBrains Mono", monospace';
+  ctx.font = `${fs}px "JetBrains Mono", monospace`;
   if (segs.before) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.before, x, y); x += ctx.measureText(segs.before).width; }
   if (segs.shimmer) { ctx.fillStyle = rgb(effShimmer); ctx.fillText(segs.shimmer, x, y); x += ctx.measureText(segs.shimmer).width; }
   if (segs.after) { ctx.fillStyle = rgb(msgColor); ctx.fillText(segs.after, x, y); }
@@ -348,18 +403,42 @@ function hexToRgb(hex) {
   const m = hex.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
   return m ? [parseInt(m[1],16), parseInt(m[2],16), parseInt(m[3],16)] : [204,120,92];
 }
+function setDir(dir) {
+  state.shimDir = dir;
+  document.getElementById('btnRtl').classList.toggle('active', dir === 'rtl');
+  document.getElementById('btnLtr').classList.toggle('active', dir === 'ltr');
+}
 function onControlChange() {
-  state.shimDir = document.getElementById('shimDir').value;
   state.shimWidth = +document.getElementById('shimWidth').value;
   state.shimSpeed = +document.getElementById('shimSpeed').value;
   state.shimIntensity = +document.getElementById('shimIntensity').value / 100;
   state.fps = +document.getElementById('fps').value;
   state.gifDuration = +document.getElementById('gifDuration').value;
+  const newFontSize = +document.getElementById('fontSize').value;
+  if (newFontSize !== state.fontSize) {
+    state.fontSize = newFontSize;
+    measureGlyphWidth(newFontSize);
+  }
   document.getElementById('shimWidthVal').textContent = state.shimWidth;
   document.getElementById('shimSpeedVal').textContent = state.shimSpeed.toFixed(1) + 's';
   document.getElementById('shimIntensityVal').textContent = Math.round(state.shimIntensity*100) + '%';
   document.getElementById('fpsVal').textContent = state.fps + ' fps';
   document.getElementById('gifDurationVal').textContent = state.gifDuration + 's';
+  document.getElementById('fontSizeVal').textContent = state.fontSize + 'px';
+  updateGifSizeEstimate();
+}
+
+function updateGifSizeEstimate() {
+  const totalFrames = Math.round(state.gifDuration * state.fps);
+  // Rough estimate: each frame ~2-5 KB with LZW compression on dark bg
+  // Canvas size matters: larger = more pixels = larger frames
+  const pixels = state.canvasWidth * 80;
+  const bytesPerFrame = Math.round(pixels * 0.8); // rough: 0.8 bytes/pixel after LZW
+  const totalBytes = totalFrames * bytesPerFrame + 1024; // +1 KB overhead
+  const kb = (totalBytes / 1024).toFixed(0);
+  const mb = (totalBytes / (1024*1024)).toFixed(1);
+  document.getElementById('gifSizeEst').textContent =
+    totalBytes > 1024*1024 ? `~${mb} MB` : `~${kb} KB`;
 }
 function onResize() {
   state.canvasWidth = +document.getElementById('canvasWidth').value;
@@ -401,10 +480,13 @@ function exportGif() {
         fill.style.width = Math.round(40 + (i+1) / totalFrames * 60) + '%';
       });
       const blob = gif.toBlob();
+      const sizeKB = (blob.size / 1024).toFixed(0);
+      const sizeMB = (blob.size / (1024*1024)).toFixed(1);
+      const sizeStr = blob.size > 1024*1024 ? `${sizeMB} MB` : `${sizeKB} KB`;
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a'); a.href = url; a.download = 'claude-spinner.gif'; a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      status.textContent = `✓ Exported (${totalFrames} frames, ${state.gifDuration}s)`;
+      status.textContent = `✓ Exported (${totalFrames} frames, ${state.gifDuration}s, ${sizeStr})`;
     } catch(e) { console.error(e); status.textContent = 'Export failed: ' + e.message; }
     btn.disabled = false; bar.style.display = 'none'; state.tick = savedTick;
   }, 50);
@@ -550,7 +632,7 @@ class GIFEncoder {
 }
 
 // === Init ===
-initColorChips(); onControlChange(); animate(0);
+initColorChips(); setDir('rtl'); onControlChange(); animate(0);
 </script>
 </body>
 </html>
