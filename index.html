@@ -409,7 +409,7 @@ function toggleBg() {
   document.getElementById('btnToggleBg').textContent = state.transparentBg ? '不透明背景' : '透明背景';
 }
 
-// === GIF Export (minimal LZW encoder) ===
+// === GIF Export ===
 function exportGif() {
   const btn = document.getElementById('btnExportGif');
   const status = document.getElementById('status');
@@ -421,37 +421,42 @@ function exportGif() {
   bar.style.display = 'block';
   fill.style.width = '0%';
 
-  // Save state
   const savedTick = state.tick;
   const totalFrames = Math.round(state.gifDuration * state.fps);
-  const delay = Math.round(1000 / state.fps);
+  const delayMs = Math.round(1000 / state.fps);
+  const w = canvas.width, h = canvas.height;
 
-  // Capture frames
-  const frames = [];
+  // Capture all frames as RGBA
+  const frameData = [];
   for (let i = 0; i < totalFrames; i++) {
     state.tick = i;
     render();
-    frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-    fill.style.width = Math.round((i+1) / totalFrames * 50) + '%';
+    frameData.push(ctx.getImageData(0, 0, w, h).data);
+    fill.style.width = Math.round((i+1) / totalFrames * 40) + '%';
   }
 
-  // Encode GIF
+  // Encode async to not block UI
   setTimeout(() => {
     try {
-      const gif = new SimpleGIF(canvas.width, canvas.height, delay);
-      frames.forEach((frame, i) => {
-        gif.addFrame(frame.data, canvas.width, canvas.height, state.transparentBg);
-        fill.style.width = Math.round(50 + (i+1) / totalFrames * 50) + '%';
+      const gif = new GIFEncoder(w, h);
+      gif.setRepeat(0); // loop forever
+      gif.setDelay(delayMs);
+
+      frameData.forEach((rgba, i) => {
+        gif.addFrame(rgba, state.transparentBg);
+        fill.style.width = Math.round(40 + (i+1) / totalFrames * 60) + '%';
       });
-      const blob = gif.finish();
+
+      const blob = gif.toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = 'spinner.gif';
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       status.textContent = `✓ 已导出 (${totalFrames} 帧, ${state.gifDuration}s)`;
     } catch(e) {
+      console.error(e);
       status.textContent = '导出失败: ' + e.message;
     }
     btn.disabled = false;
@@ -468,192 +473,230 @@ function exportPng() {
   a.click();
 }
 
-// === Minimal GIF Encoder (uncompressed LZW) ===
-class SimpleGIF {
-  constructor(width, height, delay) {
+// === GIF Encoder (GIF89a, LZW compressed, 256-color palette) ===
+class GIFEncoder {
+  constructor(width, height) {
     this.width = width;
     this.height = height;
-    this.delay = delay;
+    this.delay = 100;
+    this.repeat = 0;
     this.frames = [];
   }
 
-  addFrame(rgba, w, h, transparent) {
-    // Quantize to 256 colors
-    const {pixels, palette} = this.quantize(rgba, w, h, transparent);
-    this.frames.push({pixels, palette, transparent});
+  setDelay(ms) { this.delay = ms; }
+  setRepeat(n) { this.repeat = n; } // 0 = loop forever
+
+  addFrame(rgba, transparent) {
+    const {indexed, palette, transparentIdx} = this._quantize(rgba, transparent);
+    this.frames.push({indexed, palette, transparentIdx});
   }
 
-  quantize(rgba, w, h, transparent) {
-    // Simple median-cut-like quantization
-    const colorMap = new Map();
-    const pixels = new Uint8Array(w * h);
+  _quantize(rgba, transparent) {
+    const w = this.width, h = this.height, total = w * h;
 
-    for (let i = 0; i < w * h; i++) {
+    // Collect unique colors (6-bit quantization to reduce)
+    const colorCounts = new Map();
+    for (let i = 0; i < total; i++) {
       const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
-      // Round to reduce color count
-      const key = (transparent && a < 128) ? -1 :
-                  ((r>>2)<<16) | ((g>>2)<<8) | (b>>2);
-      if (!colorMap.has(key)) colorMap.set(key, {count: 0, r: 0, g: 0, b: 0});
-      const c = colorMap.get(key);
-      c.count++;
-      if (key !== -1) { c.r += r; c.g += g; c.b += b; }
+      if (transparent && a < 128) continue; // skip transparent pixels for palette
+      const key = ((r >> 2) << 16) | ((g >> 2) << 8) | (b >> 2);
+      colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
     }
 
-    // Build palette (max 255 colors + transparent)
-    const entries = [...colorMap.entries()].filter(([k]) => k !== -1)
-      .sort((a,b) => b[1].count - a[1].count)
-      .slice(0, transparent ? 255 : 256);
+    // Take top 255 most frequent colors (reserve index 0 for transparent)
+    const sorted = [...colorCounts.entries()].sort((a, b) => b[1] - a[1]);
+    const maxColors = transparent ? 255 : 256;
+    const topColors = sorted.slice(0, maxColors);
 
-    const palette = [];
-    const lookup = new Map();
+    // Build palette
+    const palette = []; // [[r,g,b], ...]
+    const colorToIdx = new Map();
 
     if (transparent) {
-      palette.push([0,0,0]); // index 0 = transparent
-      lookup.set(-1, 0);
+      palette.push([0, 0, 0]); // index 0 = transparent
     }
 
-    entries.forEach(([key, c]) => {
+    for (const [key] of topColors) {
       const idx = palette.length;
-      palette.push([Math.round(c.r/c.count), Math.round(c.g/c.count), Math.round(c.b/c.count)]);
-      lookup.set(key, idx);
-    });
-
-    // Map pixels
-    for (let i = 0; i < w * h; i++) {
-      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
-      const key = (transparent && a < 128) ? -1 :
-                  ((r>>2)<<16) | ((g>>2)<<8) | (b>>2);
-      pixels[i] = lookup.get(key) ?? 0;
+      // Reconstruct from 6-bit quantized: shift left 2, fill low bits
+      const rq = (key >> 16) & 0x3F;
+      const gq = (key >> 8) & 0x3F;
+      const bq = key & 0x3F;
+      palette.push([
+        (rq << 2) | (rq >> 4),
+        (gq << 2) | (gq >> 4),
+        (bq << 2) | (bq >> 4),
+      ]);
+      colorToIdx.set(key, idx);
     }
 
-    // Pad palette to power of 2
-    const bits = Math.max(2, Math.ceil(Math.log2(Math.max(palette.length, 4))));
-    while (palette.length < (1 << bits)) palette.push([0,0,0]);
+    // Pad to 256 entries
+    while (palette.length < 256) palette.push([0, 0, 0]);
 
-    return {pixels, palette: {colors: palette, bits}};
+    // Map pixels to palette indices
+    const indexed = new Uint8Array(total);
+    for (let i = 0; i < total; i++) {
+      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
+      if (transparent && a < 128) {
+        indexed[i] = 0;
+      } else {
+        const key = ((r >> 2) << 16) | ((g >> 2) << 8) | (b >> 2);
+        indexed[i] = colorToIdx.has(key) ? colorToIdx.get(key) :
+          this._findNearest(r, g, b, palette, transparent ? 1 : 0);
+      }
+    }
+
+    return {indexed, palette, transparentIdx: transparent ? 0 : -1};
   }
 
-  finish() {
+  _findNearest(r, g, b, palette, startIdx) {
+    let best = startIdx, bestDist = Infinity;
+    for (let i = startIdx; i < palette.length; i++) {
+      const [pr, pg, pb] = palette[i];
+      const d = (r-pr)**2 + (g-pg)**2 + (b-pb)**2;
+      if (d < bestDist) { bestDist = d; best = i; }
+    }
+    return best;
+  }
+
+  toBlob() {
     const buf = [];
     const w = this.width, h = this.height;
 
-    // Header
-    this.writeStr(buf, 'GIF89a');
-    this.writeShort(buf, w);
-    this.writeShort(buf, h);
-    buf.push(0xF7, 0, 0); // GCT flag, 512 colors (2^9)
+    // === Header ===
+    this._str(buf, 'GIF89a');
+    this._u16(buf, w);
+    this._u16(buf, h);
 
-    // Global palette from first frame
-    const gct = this.frames[0].palette;
-    for (let i = 0; i < 512; i++) {
-      const c = gct.colors[i] || [0,0,0];
-      buf.push(c[0], c[1], c[2]);
+    // Packed byte: GCT flag=1, color resolution=7 (8 bits), sort=0, GCT size=7
+    // GCT size N means table has 2^(N+1) entries. N=7 → 2^8 = 256 colors.
+    // Bit layout: [1][111][0][111] = 0xF7
+    buf.push(0xF7);
+
+    buf.push(0);    // bg color index
+    buf.push(0);    // pixel aspect ratio
+
+    // === Global Color Table (256 * 3 bytes) ===
+    const palette = this.frames[0].palette;
+    for (let i = 0; i < 256; i++) {
+      buf.push(palette[i][0], palette[i][1], palette[i][2]);
     }
 
-    // Netscape extension (loop)
-    buf.push(0x21, 0xFF, 0x0B);
-    this.writeStr(buf, 'NETSCAPE2.0');
-    buf.push(0x03, 0x01);
-    this.writeShort(buf, 0); // loop forever
-    buf.push(0x00);
+    // === Netscape extension (loop) ===
+    if (this.repeat >= 0) {
+      buf.push(0x21, 0xFF, 0x0B);
+      this._str(buf, 'NETSCAPE2.0');
+      buf.push(0x03, 0x01);
+      this._u16(buf, this.repeat);
+      buf.push(0x00);
+    }
 
-    // Frames
-    this.frames.forEach(frame => {
-      // Graphic control extension
+    // === Frames ===
+    for (const frame of this.frames) {
+      // Graphic Control Extension
       buf.push(0x21, 0xF9, 0x04);
-      buf.push(frame.transparent ? 0x09 : 0x08); // disposal: restore bg / none
-      this.writeShort(buf, Math.round(this.delay / 10)); // delay in 1/100s
-      buf.push(frame.transparent ? 0 : 0); // transparent color index
+      const disposal = frame.transparentIdx >= 2 ? 1 : 2; // 2 = restore to bg
+      const packed = (disposal << 2) | (frame.transparentIdx >= 0 ? 1 : 0);
+      buf.push(packed);
+      this._u16(buf, Math.round(this.delay / 10)); // delay in 1/100s
+      buf.push(frame.transparentIdx >= 0 ? frame.transparentIdx : 0);
       buf.push(0x00);
 
-      // Image descriptor
+      // Image Descriptor
       buf.push(0x2C);
-      this.writeShort(buf, 0); this.writeShort(buf, 0);
-      this.writeShort(buf, w); this.writeShort(buf, h);
-      buf.push(frame.palette.bits === 9 ? 0x87 : 0x80 | (frame.palette.bits - 1));
+      this._u16(buf, 0); // left
+      this._u16(buf, 0); // top
+      this._u16(buf, w);
+      this._u16(buf, h);
+      // Packed: no local CT, not interlaced, not sorted, reserved=0
+      buf.push(0x00);
 
-      // Local color table (if different from GCT)
-      const lct = frame.palette;
-      if (lct.bits === 9) {
-        for (let i = 0; i < 512; i++) {
-          const c = lct.colors[i] || [0,0,0];
-          buf.push(c[0], c[1], c[2]);
-        }
-      }
+      // LZW Image Data (min code size = 8 for 256 colors)
+      this._lzw(buf, frame.indexed, 8);
+    }
 
-      // LZW image data
-      this.writeLZW(buf, frame.pixels, lct.bits);
-    });
+    // === Trailer ===
+    buf.push(0x3B);
 
-    buf.push(0x3B); // Trailer
     return new Blob([new Uint8Array(buf)], {type: 'image/gif'});
   }
 
-  writeLZW(buf, pixels, minCodeSize) {
-    buf.push(minCodeSize);
+  _lzw(buf, pixels, minCodeSize) {
+    buf.push(minCodeSize); // LZW minimum code size
+
     const clearCode = 1 << minCodeSize;
     const eoiCode = clearCode + 1;
 
+    // Output buffer with bit packing
+    const out = [];
+    let bitBuf = 0, bitPos = 0;
     let codeSize = minCodeSize + 1;
-    let nextCode = eoiCode + 1;
-    const table = new Map();
 
-    // Init table
-    for (let i = 0; i < clearCode; i++) table.set(String(i), i);
-
-    let out = [];
-    let bitBuf = 0, bitCount = 0;
-
-    const emit = (code) => {
-      bitBuf |= code << bitCount;
-      bitCount += codeSize;
-      while (bitCount >= 8) {
+    const emitCode = (code) => {
+      bitBuf |= code << bitPos;
+      bitPos += codeSize;
+      while (bitPos >= 8) {
         out.push(bitBuf & 0xFF);
         bitBuf >>= 8;
-        bitCount -= 8;
+        bitPos -= 8;
       }
     };
 
-    emit(clearCode);
-    let cur = String(pixels[0]);
+    // Init code table
+    let nextCode = eoiCode + 1;
+    let table = new Map();
+    for (let i = 0; i < clearCode; i++) table.set(String.fromCharCode(i), i);
 
+    emitCode(clearCode);
+
+    let cur = String.fromCharCode(pixels[0]);
     for (let i = 1; i < pixels.length; i++) {
-      const next = cur + ',' + pixels[i];
-      if (table.has(next)) {
-        cur = next;
+      const ch = String.fromCharCode(pixels[i]);
+      const combined = cur + ch;
+
+      if (table.has(combined)) {
+        cur = combined;
       } else {
-        emit(table.get(cur));
+        emitCode(table.get(cur));
+
         if (nextCode < 4096) {
-          table.set(next, nextCode++);
-          if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
+          table.set(combined, nextCode);
+          // Increase code size BEFORE emitting the code that requires it
+          if (nextCode === (1 << codeSize) && codeSize < 12) {
+            codeSize++;
+          }
+          nextCode++;
         } else {
-          emit(clearCode);
-          table.clear();
-          for (let j = 0; j < clearCode; j++) table.set(String(j), j);
+          // Table full — emit clear and reset
+          emitCode(clearCode);
+          table = new Map();
+          for (let j = 0; j < clearCode; j++) table.set(String.fromCharCode(j), j);
           nextCode = eoiCode + 1;
           codeSize = minCodeSize + 1;
         }
-        cur = String(pixels[i]);
+
+        cur = ch;
       }
     }
-    emit(table.get(cur));
-    emit(eoiCode);
+    emitCode(table.get(cur));
+    emitCode(eoiCode);
 
-    if (bitCount > 0) out.push(bitBuf & 0xFF);
+    // Flush remaining bits
+    if (bitPos > 0) out.push(bitBuf & 0xFF);
 
-    // Write sub-blocks
+    // Write sub-blocks (max 255 bytes each)
     let pos = 0;
     while (pos < out.length) {
-      const chunk = out.slice(pos, pos + 255);
-      buf.push(chunk.length);
-      buf.push(...chunk);
-      pos += 255;
+      const chunkSize = Math.min(255, out.length - pos);
+      buf.push(chunkSize);
+      for (let i = 0; i < chunkSize; i++) buf.push(out[pos + i]);
+      pos += chunkSize;
     }
-    buf.push(0x00); // Block terminator
+    buf.push(0x00); // block terminator
   }
 
-  writeStr(buf, s) { for (let i = 0; i < s.length; i++) buf.push(s.charCodeAt(i)); }
-  writeShort(buf, n) { buf.push(n & 0xFF, (n >> 8) & 0xFF); }
+  _str(buf, s) { for (let i = 0; i < s.length; i++) buf.push(s.charCodeAt(i)); }
+  _u16(buf, n) { buf.push(n & 0xFF, (n >> 8) & 0xFF); }
 }
 
 // === Init ===
