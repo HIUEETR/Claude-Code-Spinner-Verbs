@@ -507,7 +507,7 @@ function exportPng() {
   a.click();
 }
 
-// === GIF Encoder (GIF89a, LZW compressed, 256-color palette) ===
+// === GIF Encoder (GIF89a, per-frame Local Color Table, LZW) ===
 class GIFEncoder {
   constructor(width, height) {
     this.width = width;
@@ -518,45 +518,93 @@ class GIFEncoder {
   }
 
   setDelay(ms) { this.delay = ms; }
-  setRepeat(n) { this.repeat = n; } // 0 = loop forever
+  setRepeat(n) { this.repeat = n; }
 
   addFrame(rgba, transparent) {
-    const {indexed, palette, transparentIdx} = this._quantize(rgba, transparent);
-    this.frames.push({indexed, palette, transparentIdx});
+    this.frames.push({rgba: new Uint8Array(rgba), transparent});
+  }
+
+  toBlob() {
+    const buf = [];
+    const w = this.width, h = this.height;
+
+    // === Header ===
+    this._str(buf, 'GIF89a');
+    this._u16(buf, w);
+    this._u16(buf, h);
+    // No GCT — we use per-frame Local Color Tables
+    // packed: GCT=0, color res=7, sort=0, GCT size=0
+    buf.push(0x70); // 0_111_0_000
+    buf.push(0);    // bg color index (unused without GCT)
+    buf.push(0);    // pixel aspect ratio
+
+    // === Netscape extension (loop) ===
+    buf.push(0x21, 0xFF, 0x0B);
+    this._str(buf, 'NETSCAPE2.0');
+    buf.push(0x03, 0x01);
+    this._u16(buf, this.repeat);
+    buf.push(0x00);
+
+    // === Frames ===
+    for (let fi = 0; fi < this.frames.length; fi++) {
+      const {rgba, transparent} = this.frames[fi];
+
+      // Quantize this frame to 256 colors
+      const {indexed, palette, bgIdx} = this._quantize(rgba, transparent);
+
+      // Graphic Control Extension
+      buf.push(0x21, 0xF9, 0x04);
+      // disposal=2 (restore to bg), transparency flag
+      const packed = (2 << 2) | (transparent ? 1 : 0);
+      buf.push(packed);
+      this._u16(buf, Math.round(this.delay / 10));
+      buf.push(transparent ? bgIdx : 0); // transparent color index
+      buf.push(0x00);
+
+      // Image Descriptor with Local Color Table
+      buf.push(0x2C);
+      this._u16(buf, 0); // left
+      this._u16(buf, 0); // top
+      this._u16(buf, w);
+      this._u16(buf, h);
+      // packed: LCT=1, not interlaced, not sorted, LCT size=7 (256 entries)
+      buf.push(0x87); // 1_000_0_111
+
+      // Local Color Table (256 * 3 bytes)
+      for (let i = 0; i < 256; i++) {
+        buf.push(palette[i][0], palette[i][1], palette[i][2]);
+      }
+
+      // LZW Image Data
+      this._lzw(buf, indexed, 8);
+    }
+
+    // === Trailer ===
+    buf.push(0x3B);
+
+    return new Blob([new Uint8Array(buf)], {type: 'image/gif'});
   }
 
   _quantize(rgba, transparent) {
-    const w = this.width, h = this.height, total = w * h;
+    const total = this.width * this.height;
 
-    // Collect unique colors with 5-bit quantization (32 levels per channel)
-    // This gives max 32768 unique keys — much better frequency counting
+    // Collect all unique colors (exact RGB, no pre-quantization)
     const colorCounts = new Map();
     for (let i = 0; i < total; i++) {
       const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
       if (transparent && a < 128) continue;
-      const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+      const key = (r << 16) | (g << 8) | b;
       colorCounts.set(key, (colorCounts.get(key) || 0) + 1);
     }
 
-    // Take top N most frequent colors
+    // Sort by frequency, take top 256
     const sorted = [...colorCounts.entries()].sort((a, b) => b[1] - a[1]);
     const maxColors = transparent ? 255 : 256;
     const topColors = sorted.slice(0, maxColors);
 
-    // Build palette with exact average colors (not quantized reconstruction)
+    // Build palette
     const palette = [];
     const keyToIdx = new Map();
-
-    // Also build a reverse map to compute average RGB per key
-    const colorSums = new Map();
-    for (let i = 0; i < total; i++) {
-      const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
-      if (transparent && a < 128) continue;
-      const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-      if (!colorSums.has(key)) colorSums.set(key, {r: 0, g: 0, b: 0, n: 0});
-      const s = colorSums.get(key);
-      s.r += r; s.g += g; s.b += b; s.n++;
-    }
 
     if (transparent) {
       palette.push([0, 0, 0]); // index 0 = transparent
@@ -564,31 +612,38 @@ class GIFEncoder {
 
     for (const [key] of topColors) {
       const idx = palette.length;
-      const s = colorSums.get(key);
-      palette.push([Math.round(s.r/s.n), Math.round(s.g/s.n), Math.round(s.b/s.n)]);
+      palette.push([(key >> 16) & 0xFF, (key >> 8) & 0xFF, key & 0xFF]);
       keyToIdx.set(key, idx);
     }
 
-    // Pad to 256 entries
+    // Pad to 256
     while (palette.length < 256) palette.push([0, 0, 0]);
 
-    // Map pixels to palette indices
+    // Map pixels
     const indexed = new Uint8Array(total);
     for (let i = 0; i < total; i++) {
       const r = rgba[i*4], g = rgba[i*4+1], b = rgba[i*4+2], a = rgba[i*4+3];
       if (transparent && a < 128) {
         indexed[i] = 0;
       } else {
-        const key = ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
-        if (keyToIdx.has(key)) {
-          indexed[i] = keyToIdx.get(key);
-        } else {
-          indexed[i] = this._findNearest(r, g, b, palette, transparent ? 1 : 0);
-        }
+        const key = (r << 16) | (g << 8) | b;
+        indexed[i] = keyToIdx.has(key) ? keyToIdx.get(key) :
+          this._findNearest(r, g, b, palette, transparent ? 1 : 0);
       }
     }
 
-    return {indexed, palette, transparentIdx: transparent ? 0 : -1};
+    // Find background color index (darkest color, for disposal restore)
+    let bgIdx = transparent ? 0 : 1;
+    if (!transparent) {
+      let minLum = Infinity;
+      for (let i = 0; i < palette.length; i++) {
+        const [r,g,b] = palette[i];
+        const lum = r*0.299 + g*0.587 + b*0.114;
+        if (lum < minLum) { minLum = lum; bgIdx = i; }
+      }
+    }
+
+    return {indexed, palette, bgIdx};
   }
 
   _findNearest(r, g, b, palette, startIdx) {
@@ -601,75 +656,12 @@ class GIFEncoder {
     return best;
   }
 
-  toBlob() {
-    const buf = [];
-    const w = this.width, h = this.height;
-
-    // === Header ===
-    this._str(buf, 'GIF89a');
-    this._u16(buf, w);
-    this._u16(buf, h);
-
-    // Packed byte: GCT flag=1, color resolution=7 (8 bits), sort=0, GCT size=7
-    // GCT size N means table has 2^(N+1) entries. N=7 → 2^8 = 256 colors.
-    // Bit layout: [1][111][0][111] = 0xF7
-    buf.push(0xF7);
-
-    buf.push(0);    // bg color index
-    buf.push(0);    // pixel aspect ratio
-
-    // === Global Color Table (256 * 3 bytes) ===
-    const palette = this.frames[0].palette;
-    for (let i = 0; i < 256; i++) {
-      buf.push(palette[i][0], palette[i][1], palette[i][2]);
-    }
-
-    // === Netscape extension (loop) ===
-    if (this.repeat >= 0) {
-      buf.push(0x21, 0xFF, 0x0B);
-      this._str(buf, 'NETSCAPE2.0');
-      buf.push(0x03, 0x01);
-      this._u16(buf, this.repeat);
-      buf.push(0x00);
-    }
-
-    // === Frames ===
-    for (const frame of this.frames) {
-      // Graphic Control Extension
-      buf.push(0x21, 0xF9, 0x04);
-      const disposal = frame.transparentIdx >= 2 ? 1 : 2; // 2 = restore to bg
-      const packed = (disposal << 2) | (frame.transparentIdx >= 0 ? 1 : 0);
-      buf.push(packed);
-      this._u16(buf, Math.round(this.delay / 10)); // delay in 1/100s
-      buf.push(frame.transparentIdx >= 0 ? frame.transparentIdx : 0);
-      buf.push(0x00);
-
-      // Image Descriptor
-      buf.push(0x2C);
-      this._u16(buf, 0); // left
-      this._u16(buf, 0); // top
-      this._u16(buf, w);
-      this._u16(buf, h);
-      // Packed: no local CT, not interlaced, not sorted, reserved=0
-      buf.push(0x00);
-
-      // LZW Image Data (min code size = 8 for 256 colors)
-      this._lzw(buf, frame.indexed, 8);
-    }
-
-    // === Trailer ===
-    buf.push(0x3B);
-
-    return new Blob([new Uint8Array(buf)], {type: 'image/gif'});
-  }
-
   _lzw(buf, pixels, minCodeSize) {
-    buf.push(minCodeSize); // LZW minimum code size
+    buf.push(minCodeSize);
 
     const clearCode = 1 << minCodeSize;
     const eoiCode = clearCode + 1;
 
-    // Output buffer with bit packing
     const out = [];
     let bitBuf = 0, bitPos = 0;
     let codeSize = minCodeSize + 1;
@@ -684,7 +676,6 @@ class GIFEncoder {
       }
     };
 
-    // Init code table
     let nextCode = eoiCode + 1;
     let table = new Map();
     for (let i = 0; i < clearCode; i++) table.set(String.fromCharCode(i), i);
@@ -703,38 +694,32 @@ class GIFEncoder {
 
         if (nextCode < 4096) {
           table.set(combined, nextCode);
-          // Increase code size BEFORE emitting the code that requires it
-          if (nextCode === (1 << codeSize) && codeSize < 12) {
-            codeSize++;
-          }
+          if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
           nextCode++;
         } else {
-          // Table full — emit clear and reset
           emitCode(clearCode);
           table = new Map();
           for (let j = 0; j < clearCode; j++) table.set(String.fromCharCode(j), j);
           nextCode = eoiCode + 1;
           codeSize = minCodeSize + 1;
         }
-
         cur = ch;
       }
     }
     emitCode(table.get(cur));
     emitCode(eoiCode);
 
-    // Flush remaining bits
     if (bitPos > 0) out.push(bitBuf & 0xFF);
 
-    // Write sub-blocks (max 255 bytes each)
+    // Sub-blocks
     let pos = 0;
     while (pos < out.length) {
-      const chunkSize = Math.min(255, out.length - pos);
-      buf.push(chunkSize);
-      for (let i = 0; i < chunkSize; i++) buf.push(out[pos + i]);
-      pos += chunkSize;
+      const cs = Math.min(255, out.length - pos);
+      buf.push(cs);
+      for (let i = 0; i < cs; i++) buf.push(out[pos + i]);
+      pos += cs;
     }
-    buf.push(0x00); // block terminator
+    buf.push(0x00);
   }
 
   _str(buf, s) { for (let i = 0; i < s.length; i++) buf.push(s.charCodeAt(i)); }
