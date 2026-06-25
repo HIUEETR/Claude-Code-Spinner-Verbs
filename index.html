@@ -887,7 +887,7 @@
   <main class="page">
     <section class="hero">
       <div class="brand-block">
-        <h1>Claude Code Spinner</h1>
+        <h1>Claude Code Spinner Verbs</h1>
         <div class="hero-meta" aria-label="Top controls">
           <button class="language-toggle" id="languageToggle" type="button" aria-label="Switch language" onclick="toggleLanguage()">中文</button>
           <button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch to dark theme" onclick="toggleTheme(event)">
@@ -1540,7 +1540,8 @@ function exportGif() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'claude-spinner.gif';
+      const gifName = (state.text.trim() || 'claude-spinner').replace(/[^a-zA-Z0-9一-鿿_-]/g, '_');
+      a.download = gifName + '.gif';
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       status.textContent = t('exported')({ w, h, frames: totalFrames, duration: state.gifDuration });
@@ -1559,7 +1560,8 @@ function exportPng() {
   render();
   const a = document.createElement('a');
   a.href = canvas.toDataURL('image/png');
-  a.download = 'claude-spinner.png';
+  const pngName = (state.text.trim() || 'claude-spinner').replace(/[^a-zA-Z0-9一-鿿_-]/g, '_');
+  a.download = pngName + '.png';
   a.click();
 }
 

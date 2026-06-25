@@ -1,28 +1,70 @@
 # Claude Code Spinner Verbs
 
-A single-file web tool for creating Claude-style loading spinner assets. Open `index.html` in a browser, tune the message, colors, motion, and export settings, then download a GIF or PNG.
+Create beautiful Claude-style loading spinner animations directly in your browser.
 
-## Features
+Customize text, colors, shimmer effects, animation speed, and export high-quality **GIF** or **PNG** assets — all from a single HTML file, with no installation or build step required.
 
-- Live canvas preview for the spinner animation
-- GIF export with configurable FPS, duration, width, and height
-- PNG export for the current frame
-- Opaque or transparent background mode
-- Preset and custom accent colors
-- Shimmer direction, width, speed, and intensity controls
-- Light and dark themes with circular reveal transition
-- English and Chinese UI switching
-- No build step or external runtime required
+![1782402669603](image/README/1782402669603.png)
 
-## Usage
+---
 
-1. Open `index.html` directly in a modern browser.
-2. Enter custom text, or leave the message empty to auto-cycle verbs.
-3. Adjust color, shimmer, size, FPS, and duration settings.
-4. Use `Export GIF` or `PNG` to download the asset.
+## ✨ Features
 
-Theme and language preferences are saved in `localStorage` when available.
+* Live canvas preview
+* Export animated GIFs
+* Adjustable shimmer animation
+* Custom accent colors
+* Transparent or solid background
+* Single-file application (no dependencies)
 
-## Browser Notes
+---
 
-The circular theme reveal uses the View Transition API when supported. Browsers without this API still switch themes normally, without the reveal animation.
+## 📸 Screenshots
+
+![1782402767912](image/README/1782402767912.gif)![1782404031202](image/README/1782404031202.gif)
+
+
+Export your spinner as an animated GIF or save the current frame as a PNG.
+
+---
+
+## 🚀 Usage
+
+1. Open [Claude-Code-Spinner-Verbs](https://hiueetr.github.io/Claude-Code-Spinner-Verbs/)[hiueetr](https://hiueetr.github.io/Claude-Code-Spinner-Verbs/) in any modern browser.
+2. Enter your own loading text, or leave it empty to automatically cycle through verbs.
+3. Customize:
+   * Accent color
+   * Shimmer direction
+   * Shimmer speed
+   * Shimmer width
+   * Animation size
+   * FPS
+   * Duration
+4. Preview changes instantly.
+5. Export as **GIF** or  **PNG** .
+
+---
+
+## ⚙️ Customization
+
+You can freely configure:
+
+* Loading message
+* Accent color
+* Background transparency
+* Animation size
+* GIF resolution
+* GIF duration
+* GIF frame rate
+* Shimmer direction
+* Shimmer intensity
+* Shimmer speed
+* Shimmer width
+
+All changes are reflected immediately in the preview.
+
+---
+
+## 📄 License
+
+MIT License
