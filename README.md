@@ -1,4 +1,4 @@
-# Claude Code Spinner
+# Claude Code Spinner Verbs
 
 A single-file web tool for creating Claude-style loading spinner assets. Open `index.html` in a browser, tune the message, colors, motion, and export settings, then download a GIF or PNG.
 
@@ -26,8 +26,3 @@ Theme and language preferences are saved in `localStorage` when available.
 ## Browser Notes
 
 The circular theme reveal uses the View Transition API when supported. Browsers without this API still switch themes normally, without the reveal animation.
-
-## Files
-
-- `index.html`: complete app, styles, canvas renderer, GIF encoder, and UI logic
-- `README.md`: project overview and usage notes
