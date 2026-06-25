@@ -4,7 +4,7 @@ Create beautiful Claude-style loading spinner animations directly in your browse
 
 Customize text, colors, shimmer effects, animation speed, and export high-quality **GIF** or **PNG** assets — all from a single HTML file, with no installation or build step required.
 
-![1782402669603](image/README/1782402669603.png)
+![1782404822782](image/README/1782404822782.png)
 
 ---
 
